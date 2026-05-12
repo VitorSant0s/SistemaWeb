@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Sport Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>🏃 Sport Tracker</h1>
+</header>
+
+<main class="container">
+
+  <!-- FORMULÁRIO -->
+  <section class="card">
+    <h2>Adicionar Treino</h2>
+    <form id="formTreino">
+      <select id="tipo" required>
+        <option value="">Tipo</option>
+        <option>Corrida</option>
+        <option>Ciclismo</option>
+        <option>Natação</option>
+      </select>
+
+      <input type="number" id="distancia" placeholder="Distância (km)" required>
+      <input type="number" id="tempo" placeholder="Tempo (min)" required>
+      <input type="date" id="data" required>
+
+      <button type="submit">Adicionar</button>
+    </form>
+    <p id="mensagem"></p>
+  </section>
+
+  <!-- FILTROS -->
+  <section class="card">
+    <h2>Filtros</h2>
+    <select id="filtroTipo">
+      <option value="">Todos</option>
+      <option>Corrida</option>
+      <option>Ciclismo</option>
+      <option>Natação</option>
+    </select>
+  </section>
+
+  <!-- LISTA -->
+  <section class="card">
+    <h2>Treinos</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Km</th>
+          <th>Tempo</th>
+          <th>Data</th>
+          <th>Ação</th>
+        </tr>
+      </thead>
+      <tbody id="listaTreinos"></tbody>
+    </table>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section class="card">
+    <h2>Dashboard</h2>
+    <canvas id="graficoSemanal"></canvas>
+    <canvas id="graficoMensal"></canvas>
+    <p id="estatisticas"></p>
+  </section>
+
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>

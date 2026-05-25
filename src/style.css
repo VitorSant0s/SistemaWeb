@@ -1,0 +1,557 @@
+:root {
+  font-family: 'SF Pro Display', 'Segoe UI', Tahoma, sans-serif;
+  line-height: 1.45;
+  font-weight: 400;
+  color: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #1a2413, #06080e 65%);
+  color: #ffffff;
+}
+
+a {
+  color: inherit;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #d8ff46;
+  outline-offset: 2px;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.mobile-page {
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+.home-page {
+  background: linear-gradient(180deg, #111824 0%, #0b101a 100%);
+  display: grid;
+  align-content: start;
+  gap: 0.9rem;
+}
+
+.desktop-sidebar {
+  display: none;
+}
+
+.home-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hello-top {
+  margin: 0;
+  color: #c5cedc;
+  font-size: 0.95rem;
+}
+
+.home-header h1 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.icon-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid #2d3546;
+  background: #1b2130;
+  color: #f4f8ff;
+  font-weight: 700;
+}
+
+.challenge-card {
+  background: linear-gradient(135deg, #dcff3d, #c5f32f);
+  border-radius: 18px;
+  padding: 1rem;
+  color: #1b2113;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.challenge-label {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.challenge-copy {
+  margin: 0.35rem 0 0;
+  color: #40492d;
+}
+
+.challenge-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
+  background: #101521;
+  color: #dcff3d;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+}
+
+.week-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(66px, 1fr));
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.day-pill {
+  min-height: 64px;
+  border-radius: 14px;
+  border: 1px solid #2d3444;
+  background: #171d2a;
+  color: #cad3df;
+  font-size: 0.83rem;
+}
+
+.day-pill.active {
+  background: #dcff3d;
+  color: #1a1f13;
+  border-color: #dcff3d;
+  font-weight: 800;
+}
+
+.workout-card {
+  background: #eceef4;
+  color: #151a22;
+  border-radius: 18px;
+  padding: 1rem;
+}
+
+.workout-time,
+.workout-sub {
+  margin: 0;
+  color: #5d6776;
+}
+
+.workout-card h2 {
+  margin: 0.4rem 0;
+}
+
+.btn-ghost {
+  text-decoration: none;
+  margin-top: 0.8rem;
+  border-radius: 999px;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #31394a;
+  background: #131a27;
+  color: #f2f6ff;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 1rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.stat-tile {
+  border-radius: 16px;
+  padding: 0.9rem;
+  color: #111;
+}
+
+.stat-tile p,
+.stat-tile strong,
+.stat-tile span {
+  margin: 0;
+  display: block;
+}
+
+.stat-tile strong {
+  margin: 0.45rem 0;
+  font-size: 1.45rem;
+}
+
+.stat-tile.lime {
+  background: #dcff3d;
+}
+
+.stat-tile.blue {
+  background: #6f95e9;
+  color: #fff;
+}
+
+.bottom-nav {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  background: #171d2a;
+  border: 1px solid #2c3444;
+  border-radius: 999px;
+  padding: 0.35rem;
+}
+
+.nav-item {
+  min-height: 42px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: #b9c4d4;
+}
+
+.nav-item.active {
+  background: #dcff3d;
+  color: #111;
+  font-weight: 800;
+}
+
+.auth-page {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: linear-gradient(180deg, #0b0f19 0%, #060911 65%);
+}
+
+.auth-hero {
+  padding-bottom: 1rem;
+}
+
+.auth-hero h1 {
+  margin: 0.4rem 0 0.85rem;
+  font-size: clamp(2rem, 8vw, 2.7rem);
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+}
+
+.auth-hero p {
+  margin: 0;
+  color: #c7d0dd;
+}
+
+.back-link {
+  font-size: 0.95rem;
+  text-decoration: none;
+  color: #d7dde8;
+}
+
+.auth-sheet {
+  background: #f7f7f8;
+  color: #101216;
+  border-radius: 26px 26px 0 0;
+  margin-inline: -1rem;
+  padding: 1rem;
+}
+
+.segment-control {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  background: #ececef;
+  border-radius: 999px;
+  padding: 0.35rem;
+}
+
+.segment-control button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #656a73;
+  font-weight: 700;
+}
+
+.segment-control button.active {
+  background: #ffffff;
+  color: #13161a;
+}
+
+.auth-form {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: #525a67;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.auth-form input:not([type='checkbox']),
+.auth-form select {
+  min-height: 50px;
+  border-radius: 12px;
+  border: 1px solid #dde1e7;
+  padding: 0.7rem;
+  font: inherit;
+}
+
+.password-field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toggle-password {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid #cfd5df;
+  padding: 0 0.7rem;
+  background: #eef1f6;
+  color: #293140;
+  font-weight: 700;
+}
+
+.auth-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #6a7280;
+  font-size: 0.9rem;
+  margin-top: 0.15rem;
+}
+
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: #566070;
+}
+
+.inline-check input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  accent-color: #6b8d79;
+}
+
+.btn-primary {
+  border-radius: 999px;
+  min-height: 52px;
+  border: 0;
+  background: linear-gradient(90deg, #8bb998, #73a989);
+  color: #fff;
+  font-weight: 800;
+}
+
+.helper-link {
+  color: #4f7e64;
+  font-weight: 600;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.helper-link:hover {
+  color: #3f6953;
+}
+
+.feedback {
+  min-height: 22px;
+  margin: 0.8rem 0 0;
+  color: #4b5b52;
+  font-size: 0.9rem;
+}
+
+@media (min-width: 1024px) {
+  .home-page,
+  .auth-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    border-left: 1px solid #1e2635;
+    border-right: 1px solid #1e2635;
+  }
+
+  .mobile-page {
+    padding: 2rem;
+  }
+
+  .home-page {
+    grid-template-columns: 240px 1.1fr 0.9fr;
+    grid-template-areas:
+      'sidebar header challenge'
+      'sidebar week challenge'
+      'sidebar workout stats'
+      'sidebar nav nav';
+    column-gap: 1.4rem;
+    row-gap: 1rem;
+  }
+
+  .desktop-sidebar {
+    grid-area: sidebar;
+    display: grid;
+    align-content: start;
+    gap: 0.5rem;
+    padding: 1rem 0.8rem;
+    border-radius: 18px;
+    border: 1px solid #253045;
+    background: #121a28;
+    max-height: calc(100vh - 4rem);
+    position: sticky;
+    top: 2rem;
+  }
+
+  .sidebar-brand {
+    margin: 0 0 0.6rem;
+    color: #d8ff46;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  .sidebar-item {
+    min-height: 44px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #c2cddd;
+    text-align: left;
+    padding: 0 0.8rem;
+    font-weight: 600;
+  }
+
+  .sidebar-item.active {
+    background: #d8ff46;
+    color: #141a10;
+    font-weight: 800;
+  }
+
+  .home-header h1 {
+    font-size: 2.1rem;
+  }
+
+  .hello-top {
+    font-size: 1.05rem;
+  }
+
+  .challenge-card {
+    min-height: 210px;
+    padding: 1.25rem;
+  }
+
+  .challenge-label {
+    font-size: 2rem;
+  }
+
+  .challenge-copy {
+    max-width: 360px;
+    font-size: 1.05rem;
+  }
+
+  .challenge-avatar {
+    width: 92px;
+    height: 92px;
+    border-radius: 22px;
+    font-size: 1.25rem;
+  }
+
+  .home-header {
+    grid-area: header;
+  }
+
+  .challenge-card {
+    grid-area: challenge;
+  }
+
+  .week-row {
+    grid-area: week;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    overflow: hidden;
+    max-width: 680px;
+  }
+
+  .day-pill {
+    min-height: 74px;
+    font-size: 0.92rem;
+  }
+
+  .workout-card {
+    grid-area: workout;
+    min-height: 250px;
+    display: grid;
+    align-content: start;
+  }
+
+  .workout-card h2 {
+    font-size: 2rem;
+    max-width: 460px;
+  }
+
+  .workout-time,
+  .workout-sub {
+    font-size: 1rem;
+  }
+
+  .stats-grid {
+    grid-area: stats;
+    align-content: start;
+    grid-template-columns: 1fr;
+  }
+
+  .stat-tile {
+    min-height: 118px;
+  }
+
+  .stat-tile strong {
+    font-size: 1.9rem;
+  }
+
+  .bottom-nav {
+    grid-area: nav;
+    max-width: 620px;
+    min-height: 64px;
+  }
+
+  .bottom-nav {
+    display: none;
+  }
+
+  .nav-item {
+    font-size: 0.95rem;
+  }
+
+  .auth-page {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+    align-items: stretch;
+  }
+
+  .auth-hero {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-right: 1rem;
+  }
+
+  .auth-sheet {
+    margin: 0;
+    border-radius: 24px;
+    align-self: center;
+    max-width: 460px;
+    justify-self: end;
+    width: 100%;
+    padding: 1.2rem;
+  }
+}

@@ -24,6 +24,14 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     async init() {
       if (!supabase) {
+        const raw = localStorage.getItem('dev-auth-user')
+        if (raw) {
+          try {
+            this.user = JSON.parse(raw) as User
+          } catch {
+            localStorage.removeItem('dev-auth-user')
+          }
+        }
         this.loading = false
         return
       }
@@ -38,15 +46,52 @@ export const useAuthStore = defineStore('auth', {
         this.user = session?.user ?? null
       })
     },
-    async signIn(email: string, password: string) {
+    async signIn(email: string, password: string, remember = true) {
       if (!supabase) {
-        return { error: { message: 'Supabase desativado no ambiente de desenvolvimento.' } } as AuthResult
+        // Local fallback: accept anything and create a lightweight user.
+        const fakeUser = {
+          id: 'dev-user',
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
+          app_metadata: { provider: 'dev', providers: ['dev'] },
+          user_metadata: {
+            role: 'athlete',
+            full_name: email.split('@')[0] || 'Dev User',
+          },
+          email,
+        } as unknown as User
+
+        this.user = fakeUser
+        this.session = null
+
+        if (remember) {
+          localStorage.setItem('dev-auth-user', JSON.stringify(fakeUser))
+        } else {
+          localStorage.removeItem('dev-auth-user')
+        }
+
+        return { error: null } as AuthResult
       }
+
       return supabase.auth.signInWithPassword({ email, password })
     },
     async signUp(email: string, password: string, role: Role, fullName: string) {
       if (!supabase) {
-        return { error: { message: 'Supabase desativado no ambiente de desenvolvimento.' } } as AuthResult
+        // Local fallback: just create a local user and consider it "registered".
+        const fakeUser = {
+          id: 'dev-user',
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
+          app_metadata: { provider: 'dev', providers: ['dev'] },
+          user_metadata: { role, full_name: fullName },
+          email,
+        } as unknown as User
+
+        this.user = fakeUser
+        this.session = null
+        localStorage.setItem('dev-auth-user', JSON.stringify(fakeUser))
+
+        return { error: null } as AuthResult
       }
       return supabase.auth.signUp({
         email,
@@ -60,7 +105,13 @@ export const useAuthStore = defineStore('auth', {
       })
     },
     async signOut() {
-      if (!supabase) return
+      if (!supabase) {
+        this.user = null
+        this.session = null
+        localStorage.removeItem('dev-auth-user')
+        return
+      }
+
       await supabase.auth.signOut()
     },
   },

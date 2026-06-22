@@ -8,7 +8,8 @@ create table if not exists public.profiles (
   role public.user_role not null,
   city text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  avatar_data_url text
 );
 
 create table if not exists public.professional_profiles (
@@ -63,13 +64,30 @@ create table if not exists public.contracts (
 create table if not exists public.workouts (
   id uuid primary key default gen_random_uuid(),
   athlete_id uuid not null references public.profiles(id) on delete cascade,
-  workout_type text not null,
+  workout_type text not null constraint workouts_workout_type_check
+    check (workout_type in ('Corrida', 'Musculacao', 'Ciclismo', 'Natacao', 'Yoga', 'Crossfit', 'Outro')),
   distance_km numeric(10, 2) not null,
   duration_min integer not null,
   workout_date date not null,
   contract_id uuid references public.contracts(id) on delete set null,
+  completed boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+create or replace function public.handle_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists on_profile_updated on public.profiles;
+create trigger on_profile_updated
+  before update on public.profiles
+  for each row execute function public.handle_updated_at();
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -165,3 +183,24 @@ create policy "contracts parties read" on public.contracts
 
 create policy "workouts own" on public.workouts
   for all using (auth.uid() = athlete_id) with check (auth.uid() = athlete_id);
+
+create table if not exists public.daily_challenges (
+  id uuid primary key default gen_random_uuid(),
+  athlete_id uuid not null references public.profiles(id) on delete cascade,
+  date date not null,
+  rating text check (rating in ('completed', 'partial', 'missed')),
+  feedback text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(athlete_id, date)
+);
+
+alter table public.daily_challenges enable row level security;
+
+create policy "challenges own" on public.daily_challenges
+  for all using (auth.uid() = athlete_id) with check (auth.uid() = athlete_id);
+
+drop trigger if exists on_daily_challenge_updated on public.daily_challenges;
+create trigger on_daily_challenge_updated
+  before update on public.daily_challenges
+  for each row execute function public.handle_updated_at();

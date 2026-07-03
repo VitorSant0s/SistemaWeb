@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Scaffold from '../components/Scaffold.vue'
+import BottomNav from '../components/BottomNav.vue'
 import WorkoutForm from '../components/WorkoutForm.vue'
 import { formatDateKey, useAgendaStore } from '../stores/agenda'
 import { useAuthStore } from '../stores/auth'
@@ -369,10 +370,7 @@ async function logout() {
     </section>
 
     <template #bottom-nav>
-      <RouterLink class="nav-item" to="/">Inicio</RouterLink>
-      <RouterLink class="nav-item" to="/metricas">Metricas</RouterLink>
-      <RouterLink class="nav-item active" to="/agenda" aria-current="page">Agenda</RouterLink>
-      <RouterLink class="nav-item" to="/perfil">Perfil</RouterLink>
+      <BottomNav />
     </template>
   </Scaffold>
 

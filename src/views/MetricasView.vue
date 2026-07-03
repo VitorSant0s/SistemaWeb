@@ -12,6 +12,7 @@ import { loadNegotiations } from '../services/negotiationService'
 import { loadAthleteWorkouts } from '../services/workoutService'
 import { getDirectoryEntry } from '../services/messageService'
 import type { ContractRecord, NegotiationRecord, ServiceOfferRecord, Workout } from '../types/domain'
+import BottomNav from '../components/BottomNav.vue'
 
 const auth = useAuthStore()
 const agenda = useAgendaStore()
@@ -332,11 +333,7 @@ async function logout() {
     </section>
 
     <template #bottom-nav>
-      <RouterLink class="nav-item" to="/">Inicio</RouterLink>
-      <RouterLink class="nav-item active" to="/metricas" aria-current="page">Metricas</RouterLink>
-      <RouterLink class="nav-item" to="/agenda">Agenda</RouterLink>
-      <RouterLink class="nav-item" to="/mensagens">Mensagens</RouterLink>
-      <RouterLink class="nav-item" to="/perfil">Perfil</RouterLink>
+      <BottomNav />
     </template>
   </Scaffold>
 </template>

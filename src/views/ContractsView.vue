@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Scaffold from '../components/Scaffold.vue'
+import BottomNav from '../components/BottomNav.vue'
 import { useAuthStore } from '../stores/auth'
 import { useNegociacaoStore } from '../stores/negociacao'
 import type { ContractWithParties } from '../types/domain'
@@ -210,11 +211,7 @@ async function logout() {
     </section>
 
     <template #bottom-nav>
-      <RouterLink class="nav-item" to="/">Inicio</RouterLink>
-      <RouterLink class="nav-item" to="/profissionais">Profissionais</RouterLink>
-      <RouterLink class="nav-item" to="/agenda">Agenda</RouterLink>
-      <RouterLink class="nav-item" to="/mensagens">Mensagens</RouterLink>
-      <RouterLink class="nav-item" to="/perfil">Perfil</RouterLink>
+      <BottomNav />
     </template>
   </Scaffold>
 </template>

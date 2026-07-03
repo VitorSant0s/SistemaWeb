@@ -9,6 +9,7 @@ import { loadAthleteHealthData } from '../services/profileService'
 import { getDirectoryEntry } from '../services/messageService'
 import { workoutTypes } from '../types/domain'
 import type { Workout, WorkoutDraft, WorkoutType } from '../types/domain'
+import BottomNav from '../components/BottomNav.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -275,11 +276,7 @@ async function logout() {
     </section>
 
     <template #bottom-nav>
-      <RouterLink class="nav-item" to="/">Inicio</RouterLink>
-      <RouterLink class="nav-item" to="/profissionais">Profissionais</RouterLink>
-      <RouterLink class="nav-item" to="/agenda">Agenda</RouterLink>
-      <RouterLink class="nav-item" to="/mensagens">Mensagens</RouterLink>
-      <RouterLink class="nav-item" to="/perfil">Perfil</RouterLink>
+      <BottomNav />
     </template>
   </Scaffold>
 

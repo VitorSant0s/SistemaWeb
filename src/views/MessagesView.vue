@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import Scaffold from '../components/Scaffold.vue'
+import BottomNav from '../components/BottomNav.vue'
 import { useAuthStore } from '../stores/auth'
 import {
   getConversations,
@@ -268,10 +269,7 @@ async function logout() {
     </section>
 
     <template #bottom-nav>
-      <RouterLink class="nav-item" to="/">Inicio</RouterLink>
-      <RouterLink class="nav-item" to="/metricas">Metricas</RouterLink>
-      <RouterLink class="nav-item" to="/agenda">Agenda</RouterLink>
-      <RouterLink class="nav-item" to="/perfil">Perfil</RouterLink>
+      <BottomNav />
     </template>
   </Scaffold>
 </template>

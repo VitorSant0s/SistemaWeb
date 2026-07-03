@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth'
 import { useNegociacaoStore } from '../stores/negociacao'
 import { listProfessionals } from '../services/professionalDirectoryService'
 import type { ProfessionalWithProfile } from '../types/domain'
+import BottomNav from '../components/BottomNav.vue'
 
 const auth = useAuthStore()
 const negociacao = useNegociacaoStore()
@@ -120,11 +121,7 @@ async function logout() {
     </section>
 
     <template #bottom-nav>
-      <RouterLink class="nav-item" to="/">Inicio</RouterLink>
-      <RouterLink class="nav-item active" to="/profissionais" aria-current="page">Profissionais</RouterLink>
-      <RouterLink class="nav-item" to="/agenda">Agenda</RouterLink>
-      <RouterLink class="nav-item" to="/mensagens">Mensagens</RouterLink>
-      <RouterLink class="nav-item" to="/perfil">Perfil</RouterLink>
+      <BottomNav />
     </template>
   </Scaffold>
 </template>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#f2d9dc"/>
+  <path d="M56 116C56 84.4 82.4 58 114 58H148V72H114C94.1 72 78 88.1 78 108V140H56V116Z" fill="#111827"/>
+  <path d="M96 116C96 96.1 112.1 80 132 80H148V94H132C122.6 94 115 101.6 115 111V140H96V116Z" fill="#6b7280"/>
+  <text x="96" y="160" text-anchor="middle" fill="#111827" font-family="'Noto Serif Display',Georgia,serif" font-size="18" font-weight="700">RAIZ</text>
+</svg>

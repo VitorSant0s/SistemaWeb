@@ -8,6 +8,7 @@ import { usePerfilStore } from '../stores/perfil'
 import { loadOffers, createOffer, updateOffer, toggleOfferActive } from '../services/offerService'
 import type { ExamDraft, HealthExam } from '../stores/perfil'
 import type { ServiceOfferRecord, ServiceOfferDraft } from '../types/domain'
+import BottomNav from '../components/BottomNav.vue'
 
 type PerfilTab = 'dados' | 'detalhes'
 
@@ -429,11 +430,7 @@ async function logout() {
     </section>
 
     <template #bottom-nav>
-      <RouterLink class="nav-item" to="/">Inicio</RouterLink>
-      <RouterLink class="nav-item" to="/metricas">Metricas</RouterLink>
-      <RouterLink class="nav-item" to="/agenda">Agenda</RouterLink>
-      <RouterLink class="nav-item" to="/mensagens">Mensagens</RouterLink>
-      <RouterLink class="nav-item active" to="/perfil" aria-current="page">Perfil</RouterLink>
+      <BottomNav />
     </template>
   </Scaffold>
 

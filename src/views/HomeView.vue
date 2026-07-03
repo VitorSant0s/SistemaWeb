@@ -7,6 +7,7 @@ import { useAgendaStore, formatDateKey } from '../stores/agenda'
 import { useNegociacaoStore } from '../stores/negociacao'
 import { generateChallenge, loadFeedback, saveFeedback } from '../services/challengeService'
 import { getNotifications, getUnreadCount, markAsRead, markAllAsRead } from '../services/notificationService'
+import BottomNav from '../components/BottomNav.vue'
 import type { AppNotification } from '../services/notificationService'
 import type { ChallengeRating } from '../types/domain'
 
@@ -326,11 +327,7 @@ async function logout() {
     </section>
 
     <template #bottom-nav>
-      <RouterLink class="nav-item active" to="/" aria-current="page">Inicio</RouterLink>
-      <RouterLink class="nav-item" to="/profissionais">Profissionais</RouterLink>
-      <RouterLink class="nav-item" to="/agenda">Agenda</RouterLink>
-      <RouterLink class="nav-item" to="/mensagens">Mensagens</RouterLink>
-      <RouterLink class="nav-item" to="/perfil">Perfil</RouterLink>
+      <BottomNav />
     </template>
   </Scaffold>
 

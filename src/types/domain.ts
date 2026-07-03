@@ -166,3 +166,23 @@ export type ChallengeFeedback = {
   rating: ChallengeRating
   feedback: string
 }
+
+export type ProfessionalWithProfile = DirectoryEntry & {
+  specialty: string
+  bio: string
+  baseHourlyPrice: number | null
+  offers: ServiceOfferRecord[]
+}
+
+export type NegotiationWithParties = NegotiationRecord & {
+  athleteName: string
+  professionalName: string
+  offerTitle: string
+  lastProposal?: ProposalRecord
+}
+
+export type ContractWithParties = ContractRecord & {
+  athleteName: string
+  professionalName: string
+  professionalSpecialty: string
+}

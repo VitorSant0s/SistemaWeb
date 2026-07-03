@@ -6,6 +6,10 @@ import AgendaView from './views/AgendaView.vue'
 import PerfilView from './views/PerfilView.vue'
 import MetricasView from './views/MetricasView.vue'
 import MessagesView from './views/MessagesView.vue'
+import ProfissionaisView from './views/ProfissionaisView.vue'
+import NegotiationsView from './views/NegotiationsView.vue'
+import ContractsView from './views/ContractsView.vue'
+import AthleteDetailView from './views/AthleteDetailView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -16,6 +20,10 @@ const router = createRouter({
     { path: '/metricas', name: 'metricas', component: MetricasView, meta: { requiresAuth: true } },
     { path: '/mensagens', name: 'mensagens', component: MessagesView, meta: { requiresAuth: true } },
     { path: '/entrar', name: 'auth', component: AuthView, meta: { guestOnly: true } },
+    { path: '/profissionais', name: 'profissionais', component: ProfissionaisView, meta: { requiresAuth: true } },
+    { path: '/negociacoes', name: 'negociacoes', component: NegotiationsView, meta: { requiresAuth: true } },
+    { path: '/contratos', name: 'contratos', component: ContractsView, meta: { requiresAuth: true } },
+    { path: '/atleta/:id', name: 'athlete-detail', component: AthleteDetailView, meta: { requiresAuth: true } },
   ],
 })
 
@@ -26,6 +34,10 @@ const routeTitles: Record<string, string> = {
   metricas: 'Metricas - Raiz Movimento',
   mensagens: 'Mensagens - Raiz Movimento',
   auth: 'Entrar - Raiz Movimento',
+  profissionais: 'Profissionais - Raiz Movimento',
+  negociacoes: 'Negociacoes - Raiz Movimento',
+  contratos: 'Contratos - Raiz Movimento',
+  'athlete-detail': 'Atleta - Raiz Movimento',
 }
 
 router.afterEach((to) => {

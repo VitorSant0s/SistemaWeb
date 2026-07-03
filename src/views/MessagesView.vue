@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import Scaffold from '../components/Scaffold.vue'
 import { useAuthStore } from '../stores/auth'
 import {
@@ -15,6 +15,7 @@ import type { ConversationWithProfile, DirectoryEntry, Message } from '../types/
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 const userId = computed(() => auth.user?.id ?? 'dev-user')
 
 const activeTab = ref<'conversas' | 'buscar'>('conversas')
@@ -25,13 +26,16 @@ const chatInput = ref('')
 const searchQuery = ref('')
 const searchResults = ref<DirectoryEntry[]>([])
 
-function loadConversations() {
-  conversations.value = getConversations(userId.value)
+const messagesLoading = ref(true)
+
+async function loadConversations() {
+  conversations.value = await getConversations(userId.value)
+  messagesLoading.value = false
 }
 
-function openConversation(conv: ConversationWithProfile) {
+async function openConversation(conv: ConversationWithProfile) {
   currentConversation.value = conv
-  currentMessages.value = getMessages(conv.id)
+  currentMessages.value = await getMessages(conv.id)
 }
 
 function closeChat() {
@@ -41,10 +45,10 @@ function closeChat() {
   loadConversations()
 }
 
-function sendChatMessage() {
+async function sendChatMessage() {
   const text = chatInput.value.trim()
   if (!text || !currentConversation.value) return
-  const message = sendMessage(currentConversation.value.id, userId.value, text)
+  const message = await sendMessage(currentConversation.value.id, userId.value, text)
   currentMessages.value = [...currentMessages.value, message]
   chatInput.value = ''
 }
@@ -56,8 +60,8 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-function startConversation(entry: DirectoryEntry) {
-  const conv = createConversation(userId.value, entry.id)
+async function startConversation(entry: DirectoryEntry) {
+  const conv = await createConversation(userId.value, entry.id)
   const partner = getDirectoryEntry(entry.id)
   const convWithProfile: ConversationWithProfile = {
     ...conv,
@@ -69,11 +73,33 @@ function startConversation(entry: DirectoryEntry) {
   chatInput.value = ''
 }
 
+const debounceTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 watch(searchQuery, (query) => {
-  searchResults.value = searchDirectory(query)
+  if (debounceTimer.value) clearTimeout(debounceTimer.value)
+  debounceTimer.value = setTimeout(async () => {
+    searchResults.value = await searchDirectory(query, userId.value)
+  }, 200)
 })
 
 loadConversations()
+
+// Handle ?pro= query param — auto-open conversation with the given user
+if (typeof route.query.pro === 'string') {
+  const entry = getDirectoryEntry(route.query.pro)
+  if (entry) {
+    void startConversation(entry)
+    router.replace({ query: {} })
+  }
+}
+
+// Watch for re-navigation with ?pro= while component is alive
+watch(() => route.query.pro, (pro) => {
+  if (typeof pro !== 'string') return
+  const entry = getDirectoryEntry(pro)
+  if (!entry) return
+  void startConversation(entry)
+  router.replace({ query: {} })
+})
 
 function formatTime(iso: string) {
   const date = new Date(iso)

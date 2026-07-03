@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, nextTick, ref, watch } from 'vue'
 import { workoutTypes } from '../stores/agenda'
+import { useNegociacaoStore } from '../stores/negociacao'
 import type { Workout, WorkoutDraft, WorkoutType } from '../stores/agenda'
 
 const props = defineProps<{
@@ -13,15 +14,20 @@ const emit = defineEmits<{
   (event: 'save', payload: WorkoutDraft): void
 }>()
 
+const negociacao = useNegociacaoStore()
+negociacao.init()
+
 const workoutType = ref<WorkoutType>('Corrida')
 const distanceKm = ref(5)
 const durationMin = ref(40)
 const workoutDate = ref(props.selectedDate)
-const hasProfessionalSupport = ref(false)
+const selectedContractId = ref<string | null>(null)
 const error = ref('')
 
 const isEditing = computed(() => Boolean(props.workout))
 const title = computed(() => (isEditing.value ? 'Editar treino' : 'Novo treino'))
+
+const activeContracts = computed(() => negociacao.contractsWithParties.filter((c) => c.status === 'active'))
 
 function syncForm() {
   if (!props.workout) {
@@ -29,7 +35,7 @@ function syncForm() {
     distanceKm.value = 5
     durationMin.value = 40
     workoutDate.value = props.selectedDate
-    hasProfessionalSupport.value = false
+    selectedContractId.value = null
     error.value = ''
     return
   }
@@ -38,7 +44,7 @@ function syncForm() {
   distanceKm.value = props.workout.distanceKm
   durationMin.value = props.workout.durationMin
   workoutDate.value = props.workout.workoutDate
-  hasProfessionalSupport.value = Boolean(props.workout.contractId)
+  selectedContractId.value = props.workout.contractId
   error.value = ''
 }
 
@@ -93,7 +99,7 @@ function submit() {
     distanceKm: Number(distanceKm.value),
     durationMin: Number(durationMin.value),
     workoutDate: workoutDate.value,
-    contractId: hasProfessionalSupport.value ? props.workout?.contractId ?? 'mock-contract-profissional' : null,
+    contractId: selectedContractId.value,
   })
 }
 </script>
@@ -134,13 +140,18 @@ function submit() {
           <input id="workout-date" v-model="workoutDate" type="date" required />
         </label>
 
-        <label class="inline-check workout-follow-check">
-          <input v-model="hasProfessionalSupport" type="checkbox" />
-          Vincular ao acompanhamento profissional
+        <label for="workout-contract">
+          Acompanhamento profissional
+          <select id="workout-contract" v-model="selectedContractId">
+            <option :value="null">Treino livre (sem acompanhamento)</option>
+            <option v-for="c in activeContracts" :key="c.id" :value="c.id">
+              {{ c.professionalName }} — {{ c.professionalSpecialty }}
+            </option>
+          </select>
         </label>
 
-        <p class="workout-form-helper">
-          Use esta opcao para separar treinos livres dos treinos acompanhados por um profissional.
+        <p v-if="!activeContracts.length" class="workout-form-helper">
+          Nenhum contrato ativo. Vincule treinos a contratos para receber acompanhamento profissional.
         </p>
 
         <p v-if="error" class="form-error" role="alert">{{ error }}</p>

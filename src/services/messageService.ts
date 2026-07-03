@@ -1,4 +1,6 @@
 import type { Conversation, ConversationWithProfile, DirectoryEntry, Message } from '../types/domain'
+import { supabase } from '../lib/supabase'
+import { addNotification } from './notificationService'
 
 const CONVERSATIONS_KEY = 'messages-conversations'
 const MESSAGES_PREFIX = 'messages-'
@@ -26,6 +28,7 @@ function readStoredValue<T>(key: string, fallback: T): T {
 }
 
 function seedDirectory() {
+  if (!import.meta.env.DEV) return readStoredValue<DirectoryEntry[]>(DIRECTORY_KEY, [])
   const existing = readStoredValue<DirectoryEntry[]>(DIRECTORY_KEY, [])
   if (existing.length > 0) return existing
 
@@ -44,6 +47,7 @@ function seedDirectory() {
 }
 
 function seedConversations(userId: string) {
+  if (!import.meta.env.DEV) return
   seedDirectory()
   const existing = readStoredValue<Conversation[]>(CONVERSATIONS_KEY, [])
   if (existing.some((c) => c.participantIds.includes(userId))) return
@@ -70,58 +74,18 @@ function seedConversations(userId: string) {
   localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(all))
 
   const pro1Messages: Message[] = [
-    {
-      id: createId(),
-      conversationId: 'mock-conv-1',
-      senderId: 'mock-pro-1',
-      text: 'Ola! Como esta se sentindo apos o ultimo treino?',
-      createdAt: timestamp,
-    },
-    {
-      id: createId(),
-      conversationId: 'mock-conv-1',
-      senderId: userId,
-      text: 'Melhor! A dor no joelho diminuiu bastante.',
-      createdAt: timestamp,
-    },
-    {
-      id: createId(),
-      conversationId: 'mock-conv-1',
-      senderId: 'mock-pro-1',
-      text: 'Otimo, aguardo seu retorno nos treinos!',
-      createdAt: timestamp,
-    },
+    { id: createId(), conversationId: 'mock-conv-1', senderId: 'mock-pro-1', text: 'Ola! Como esta se sentindo apos o ultimo treino?', createdAt: timestamp },
+    { id: createId(), conversationId: 'mock-conv-1', senderId: userId, text: 'Melhor! A dor no joelho diminuiu bastante.', createdAt: timestamp },
+    { id: createId(), conversationId: 'mock-conv-1', senderId: 'mock-pro-1', text: 'Otimo, aguardo seu retorno nos treinos!', createdAt: timestamp },
   ]
   localStorage.setItem(MESSAGES_PREFIX + 'mock-conv-1', JSON.stringify(pro1Messages))
 
   const pro2Messages: Message[] = [
-    {
-      id: createId(),
-      conversationId: 'mock-conv-2',
-      senderId: 'mock-pro-2',
-      text: 'Seu desempenho no ciclismo melhorou 15% esta semana.',
-      createdAt: timestamp,
-    },
-    {
-      id: createId(),
-      conversationId: 'mock-conv-2',
-      senderId: userId,
-      text: 'Que otimo! Senti que estava mais firme nos sprints.',
-      createdAt: timestamp,
-    },
-    {
-      id: createId(),
-      conversationId: 'mock-conv-2',
-      senderId: 'mock-pro-2',
-      text: 'Podemos ajustar a carga na proxima sessao.',
-      createdAt: timestamp,
-    },
+    { id: createId(), conversationId: 'mock-conv-2', senderId: 'mock-pro-2', text: 'Seu desempenho no ciclismo melhorou 15% esta semana.', createdAt: timestamp },
+    { id: createId(), conversationId: 'mock-conv-2', senderId: userId, text: 'Que otimo! Senti que estava mais firme nos sprints.', createdAt: timestamp },
+    { id: createId(), conversationId: 'mock-conv-2', senderId: 'mock-pro-2', text: 'Podemos ajustar a carga na proxima sessao.', createdAt: timestamp },
   ]
   localStorage.setItem(MESSAGES_PREFIX + 'mock-conv-2', JSON.stringify(pro2Messages))
-}
-
-function getDirectory(): DirectoryEntry[] {
-  return seedDirectory()
 }
 
 function getPartnerId(conversation: Conversation, userId: string): string {
@@ -129,33 +93,119 @@ function getPartnerId(conversation: Conversation, userId: string): string {
 }
 
 function findPartner(partnerId: string): DirectoryEntry | undefined {
-  return getDirectory().find((e) => e.id === partnerId)
+  return seedDirectory().find((e) => e.id === partnerId)
 }
 
-export function getConversations(userId: string): ConversationWithProfile[] {
+function mapConversationWithProfile(c: Conversation, userId: string): ConversationWithProfile {
+  const partnerId = getPartnerId(c, userId)
+  const partner = findPartner(partnerId)
+  return {
+    ...c,
+    partnerName: partner?.name ?? 'Desconhecido',
+    partnerRole: partner?.role ?? 'athlete',
+  }
+}
+
+export async function loadDirectoryFromSupabase(): Promise<DirectoryEntry[]> {
+  if (!supabase) return []
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, role')
+    .order('full_name')
+
+  if (error || !data) return []
+
+  const { data: proData } = await supabase
+    .from('professional_profiles')
+    .select('id, specialty')
+
+  const proMap = new Map(proData?.map((p) => [p.id, p.specialty]) ?? [])
+
+  return data.map((row: { id: string; full_name: string; role: string }) => ({
+    id: row.id,
+    name: row.full_name,
+    role: row.role as 'athlete' | 'professional',
+    specialty: proMap.get(row.id),
+  }))
+}
+
+function isUUID(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+export async function getConversations(userId: string): Promise<ConversationWithProfile[]> {
   seedConversations(userId)
+
+  // Read from Supabase first
+  if (supabase) {
+    const [convResult, dirResult] = await Promise.all([
+      supabase.from('conversations').select('*').contains('participant_ids', [userId]).order('last_message_at', { ascending: false }),
+      loadDirectoryFromSupabase(),
+    ])
+
+    const { data, error } = convResult
+    const dirCache = dirResult
+
+    if (!error && data) {
+      const mapped = (data as Array<{
+        id: string; participant_ids: string[]; last_message: string | null;
+        last_message_at: string; created_at: string
+      }>).map((row) => {
+        const partnerId = row.participant_ids.find((id) => id !== userId) ?? row.participant_ids[0]
+        const partner = dirCache.find((d) => d.id === partnerId)
+        return {
+          id: row.id,
+          participantIds: row.participant_ids,
+          lastMessage: row.last_message,
+          lastMessageAt: row.last_message_at,
+          createdAt: row.created_at,
+          partnerName: partner?.name ?? 'Desconhecido',
+          partnerRole: partner?.role ?? 'athlete',
+        }
+      })
+      // Cache in localStorage
+      localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(mapped))
+      return mapped
+    }
+  }
+
+  // Fallback to localStorage cache
   const all = readStoredValue<Conversation[]>(CONVERSATIONS_KEY, [])
   const userConversations = all.filter((c) => c.participantIds.includes(userId))
-
   return userConversations
-    .map((c) => {
-      const partnerId = getPartnerId(c, userId)
-      const partner = findPartner(partnerId)
-      return {
-        ...c,
-        partnerName: partner?.name ?? 'Desconhecido',
-        partnerRole: partner?.role ?? 'athlete',
-      }
-    })
+    .map((c) => mapConversationWithProfile(c, userId))
     .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt))
 }
 
-export function getMessages(conversationId: string): Message[] {
+export async function getMessages(conversationId: string): Promise<Message[]> {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+
+    if (!error && data) {
+      const mapped = (data as Array<{
+        id: string; conversation_id: string; sender_id: string;
+        text: string; created_at: string
+      }>).map((row) => ({
+        id: row.id,
+        conversationId: row.conversation_id,
+        senderId: row.sender_id,
+        text: row.text,
+        createdAt: row.created_at,
+      }))
+      localStorage.setItem(MESSAGES_PREFIX + conversationId, JSON.stringify(mapped))
+      return mapped
+    }
+  }
+
   return readStoredValue<Message[]>(MESSAGES_PREFIX + conversationId, [])
 }
 
-export function sendMessage(conversationId: string, senderId: string, text: string): Message {
-  const messages = getMessages(conversationId)
+export async function sendMessage(conversationId: string, senderId: string, text: string): Promise<Message> {
   const message: Message = {
     id: createId(),
     conversationId,
@@ -163,6 +213,22 @@ export function sendMessage(conversationId: string, senderId: string, text: stri
     text,
     createdAt: now(),
   }
+
+  // Write to Supabase
+  if (supabase) {
+    const { error: msgError } = await supabase
+      .from('messages')
+      .insert({ conversation_id: conversationId, sender_id: senderId, text })
+    if (!msgError) {
+      await supabase
+        .from('conversations')
+        .update({ last_message: text, last_message_at: message.createdAt })
+        .eq('id', conversationId)
+    }
+  }
+
+  // Cache locally
+  const messages = readStoredValue<Message[]>(MESSAGES_PREFIX + conversationId, [])
   localStorage.setItem(MESSAGES_PREFIX + conversationId, JSON.stringify([...messages, message]))
 
   const conversations = readStoredValue<Conversation[]>(CONVERSATIONS_KEY, [])
@@ -171,10 +237,12 @@ export function sendMessage(conversationId: string, senderId: string, text: stri
   )
   localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(updated))
 
+  addNotification('new_message', 'Nova mensagem', text.length > 60 ? text.slice(0, 60) + '...' : text, conversationId)
+
   return message
 }
 
-export function createConversation(userId: string, participantId: string): Conversation {
+export async function createConversation(userId: string, participantId: string): Promise<Conversation> {
   const conversations = readStoredValue<Conversation[]>(CONVERSATIONS_KEY, [])
   const existing = conversations.find(
     (c) => c.participantIds.includes(userId) && c.participantIds.includes(participantId),
@@ -188,24 +256,78 @@ export function createConversation(userId: string, participantId: string): Conve
     lastMessageAt: now(),
     createdAt: now(),
   }
+
+  // Write to Supabase
+  if (supabase && isUUID(userId) && isUUID(participantId)) {
+    const { data } = await supabase
+      .from('conversations')
+      .insert({ participant_ids: [userId, participantId] })
+      .select('*')
+      .single()
+
+    if (data) {
+      conversation.id = (data as { id: string }).id
+    }
+  }
+
+  // Cache locally
   localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify([...conversations, conversation]))
   localStorage.setItem(MESSAGES_PREFIX + conversation.id, JSON.stringify([]))
   return conversation
 }
 
-export function searchDirectory(query: string): DirectoryEntry[] {
-  const directory = getDirectory()
-  if (!query.trim()) return directory.filter((e) => e.id !== 'dev-user')
+export async function searchDirectory(query: string, userId: string): Promise<DirectoryEntry[]> {
+  // Try Supabase profiles first
+  if (supabase) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .neq('id', userId)
+      .order('full_name')
+
+    if (data) {
+      const entries: DirectoryEntry[] = data.map((row: { id: string; full_name: string; role: string }) => ({
+        id: row.id,
+        name: row.full_name,
+        role: row.role as 'athlete' | 'professional',
+      }))
+
+      // Enrich with specialty from professional_profiles
+      const { data: proData } = await supabase
+        .from('professional_profiles')
+        .select('id, specialty')
+
+      if (proData) {
+        const proMap = new Map(proData.map((p) => [p.id, p.specialty]))
+        for (const entry of entries) {
+          if (proMap.has(entry.id)) entry.specialty = proMap.get(entry.id)
+        }
+      }
+
+      const lower = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      if (!query.trim()) return entries
+      return entries.filter((e) => {
+        const name = e.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        const spec = (e.specialty ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        return name.includes(lower) || spec.includes(lower)
+      })
+    }
+  }
+
+  // Fallback to localStorage directory
+  const directory = seedDirectory()
+  const filtered = directory.filter((e) => e.id !== 'dev-user' && e.id !== userId)
+
+  if (!query.trim()) return filtered
 
   const lower = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  return directory.filter((e) => {
-    if (e.id === 'dev-user') return false
+  return filtered.filter((e) => {
     const name = e.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    const specialty = (e.specialty ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    return name.includes(lower) || specialty.includes(lower)
+    const spec = (e.specialty ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    return name.includes(lower) || spec.includes(lower)
   })
 }
 
 export function getDirectoryEntry(id: string): DirectoryEntry | undefined {
-  return getDirectory().find((e) => e.id === id)
+  return seedDirectory().find((e) => e.id === id)
 }

@@ -125,10 +125,12 @@ export async function loadFeedback(athleteId: string, date: string): Promise<Cha
 
   if (error || !data || !data.rating) return readStoredValue(getFeedbackKey(athleteId, date), null)
 
-  return {
+  const result: ChallengeFeedback = {
     rating: data.rating as ChallengeRating,
     feedback: data.feedback ?? '',
   }
+  localStorage.setItem(getFeedbackKey(athleteId, date), JSON.stringify(result)) // cache
+  return result
 }
 
 export async function saveFeedback(

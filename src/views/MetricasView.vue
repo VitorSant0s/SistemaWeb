@@ -5,31 +5,54 @@ import Scaffold from '../components/Scaffold.vue'
 import { useAuthStore } from '../stores/auth'
 import { useAgendaStore } from '../stores/agenda'
 import { usePerfilStore } from '../stores/perfil'
+import { useNegociacaoStore } from '../stores/negociacao'
 import { loadContracts } from '../services/contractService'
 import { loadOffers } from '../services/offerService'
 import { loadNegotiations } from '../services/negotiationService'
-import type { ContractRecord, NegotiationRecord, ServiceOfferRecord } from '../types/domain'
+import { loadAthleteWorkouts } from '../services/workoutService'
+import { getDirectoryEntry } from '../services/messageService'
+import type { ContractRecord, NegotiationRecord, ServiceOfferRecord, Workout } from '../types/domain'
 
 const auth = useAuthStore()
 const agenda = useAgendaStore()
 const perfil = usePerfilStore()
+const negociacao = useNegociacaoStore()
 const router = useRouter()
 
 agenda.init()
 perfil.init({ role: auth.role })
+negociacao.init()
 
 const role = computed(() => auth.role ?? 'athlete')
 const userId = computed(() => auth.user?.id ?? 'dev-user')
 
+const loading = ref(true)
+const loadError = ref(false)
 const contracts = ref<ContractRecord[]>([])
 const offers = ref<ServiceOfferRecord[]>([])
 const negotiations = ref<NegotiationRecord[]>([])
+const perAthleteWorkouts = ref<Record<string, Workout[]>>({})
 
 onMounted(async () => {
-  contracts.value = await loadContracts(userId.value)
-  if (role.value === 'professional') {
-    offers.value = await loadOffers(userId.value)
-    negotiations.value = await loadNegotiations(userId.value)
+  try {
+    contracts.value = await loadContracts(userId.value)
+    if (role.value === 'professional') {
+      offers.value = await loadOffers(userId.value)
+      negotiations.value = await loadNegotiations(userId.value)
+      const active = contracts.value.filter((c) => c.status === 'active')
+      for (const c of active) {
+        try {
+          perAthleteWorkouts.value[c.athleteId] = await loadAthleteWorkouts(c.athleteId)
+        } catch {
+          perAthleteWorkouts.value[c.athleteId] = []
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Falha ao carregar metricas', e)
+    loadError.value = true
+  } finally {
+    loading.value = false
   }
 })
 
@@ -75,6 +98,33 @@ const totalRevenue = computed(() => completedContracts.value.reduce((s, c) => s 
 const activeOffers = computed(() => offers.value.filter((o) => o.isActive))
 const openNegotiations = computed(() => negotiations.value.filter((n) => n.status === 'open'))
 
+type PerAthleteStats = {
+  athleteId: string
+  athleteName: string
+  totalWorkouts: number
+  completedWorkouts: number
+  completionRate: number
+  totalDistance: number
+  totalDuration: number
+}
+
+const athleteStats = computed<PerAthleteStats[]>(() => {
+  return activeContracts.value.map((c) => {
+    const w = perAthleteWorkouts.value[c.athleteId] ?? []
+    const total = w.length
+    const completed = w.filter((x) => x.completed).length
+    return {
+      athleteId: c.athleteId,
+      athleteName: getDirectoryEntry(c.athleteId)?.name ?? 'Atleta',
+      totalWorkouts: total,
+      completedWorkouts: completed,
+      completionRate: total === 0 ? 0 : Math.round((completed / total) * 100),
+      totalDistance: w.reduce((s, x) => s + x.distanceKm, 0),
+      totalDuration: w.reduce((s, x) => s + x.durationMin, 0),
+    }
+  })
+})
+
 function formatDistance(km: number) {
   return km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })
 }
@@ -113,6 +163,9 @@ async function logout() {
     <template #drawer>
       <RouterLink class="sidebar-item" to="/">Inicio</RouterLink>
       <RouterLink class="sidebar-item active" to="/metricas" aria-current="page">Metricas</RouterLink>
+      <RouterLink class="sidebar-item" to="/profissionais">Profissionais</RouterLink>
+      <RouterLink class="sidebar-item" to="/negociacoes">Negociacoes</RouterLink>
+      <RouterLink class="sidebar-item" to="/contratos">Contratos</RouterLink>
       <RouterLink class="sidebar-item" to="/agenda">Agenda</RouterLink>
       <RouterLink class="sidebar-item" to="/perfil">Perfil</RouterLink>
       <RouterLink class="sidebar-item" to="/mensagens">Mensagens</RouterLink>
@@ -170,6 +223,10 @@ async function logout() {
         </div>
       </section>
 
+      <div v-if="loading" class="pros-loading">Carregando dados...</div>
+      <div v-else-if="loadError" class="pros-loading" style="color:var(--danger)">Erro ao carregar dados.</div>
+
+      <template v-if="!loading">
       <section class="metricas-section" aria-label="Contratos">
         <header class="agenda-section-header">
           <div>
@@ -206,6 +263,45 @@ async function logout() {
         </article>
       </section>
 
+      <section v-if="role === 'professional'" class="metricas-section" aria-label="Atletas">
+        <header class="agenda-section-header">
+          <div>
+            <p class="agenda-kicker">Atletas</p>
+            <h2>Meus atletas</h2>
+          </div>
+        </header>
+        <div class="metricas-grid">
+          <article class="metric-card">
+            <span class="metric-label">Atletas ativos</span>
+            <strong class="metric-value">{{ negociacao.activeContracts.length }}</strong>
+          </article>
+        </div>
+        <div v-if="athleteStats.length" class="metricas-table-wrap">
+          <table class="metricas-table">
+            <thead>
+              <tr>
+                <th>Atleta</th>
+                <th>Treinos</th>
+                <th>Conclusao</th>
+                <th>Distancia</th>
+                <th>Tempo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in athleteStats" :key="s.athleteId">
+                <td>
+                  <RouterLink class="metricas-table-link" :to="'/atleta/' + s.athleteId">{{ s.athleteName }}</RouterLink>
+                </td>
+                <td>{{ s.totalWorkouts }}</td>
+                <td>{{ s.completionRate }}%</td>
+                <td>{{ formatDistance(s.totalDistance) }} km</td>
+                <td>{{ formatDuration(s.totalDuration) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section v-if="role === 'professional'" class="metricas-grid">
         <article class="metric-card">
           <span class="metric-label">Ofertas ativas</span>
@@ -232,12 +328,14 @@ async function logout() {
           </article>
         </div>
       </section>
+      </template>
     </section>
 
     <template #bottom-nav>
       <RouterLink class="nav-item" to="/">Inicio</RouterLink>
       <RouterLink class="nav-item active" to="/metricas" aria-current="page">Metricas</RouterLink>
       <RouterLink class="nav-item" to="/agenda">Agenda</RouterLink>
+      <RouterLink class="nav-item" to="/mensagens">Mensagens</RouterLink>
       <RouterLink class="nav-item" to="/perfil">Perfil</RouterLink>
     </template>
   </Scaffold>

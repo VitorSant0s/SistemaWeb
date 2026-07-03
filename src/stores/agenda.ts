@@ -65,7 +65,12 @@ export const useAgendaStore = defineStore('agenda', {
     async init() {
       if (this.initialized) return
       this.initialized = true
-      this.workouts = await loadWorkouts(getAthleteId())
+      try {
+        this.workouts = await loadWorkouts(getAthleteId())
+      } catch (e) {
+        console.error('Falha ao carregar treinos', e)
+        this.workouts = []
+      }
     },
     selectDate(date: string) {
       this.selectedDate = date
@@ -87,27 +92,43 @@ export const useAgendaStore = defineStore('agenda', {
       this.currentMonth = date.getMonth()
     },
     async addWorkout(draft: WorkoutDraft) {
-      const workout = await createWorkout(getAthleteId(), draft)
-      this.workouts.push(workout)
-      this.selectedDate = workout.workoutDate
-      return workout
+      try {
+        const workout = await createWorkout(getAthleteId(), draft)
+        this.workouts.push(workout)
+        this.selectedDate = workout.workoutDate
+        return workout
+      } catch (e) {
+        console.error('Falha ao adicionar treino', e)
+      }
     },
     async updateWorkout(id: string, draft: WorkoutDraft) {
-      const updated = await updateWorkout(id, draft, getAthleteId())
-      if (updated) {
-        this.workouts = this.workouts.map((workout) => (workout.id === id ? updated : workout))
-        this.selectedDate = draft.workoutDate
+      try {
+        const updated = await updateWorkout(id, draft, getAthleteId())
+        if (updated) {
+          this.workouts = this.workouts.map((workout) => (workout.id === id ? updated : workout))
+          this.selectedDate = draft.workoutDate
+        }
+      } catch (e) {
+        console.error('Falha ao atualizar treino', e)
       }
     },
     async deleteWorkout(id: string) {
-      await deleteWorkout(id, getAthleteId())
-      this.workouts = this.workouts.filter((workout) => workout.id !== id)
+      try {
+        await deleteWorkout(id, getAthleteId())
+        this.workouts = this.workouts.filter((workout) => workout.id !== id)
+      } catch (e) {
+        console.error('Falha ao excluir treino', e)
+      }
     },
     async toggleCompleted(id: string) {
-      const workout = this.workouts.find((w) => w.id === id)
-      if (!workout) return
-      const updated = await toggleWorkoutCompleted(workout, getAthleteId())
-      this.workouts = this.workouts.map((w) => (w.id === id ? updated : w))
+      try {
+        const workout = this.workouts.find((w) => w.id === id)
+        if (!workout) return
+        const updated = await toggleWorkoutCompleted(workout, getAthleteId())
+        this.workouts = this.workouts.map((w) => (w.id === id ? updated : w))
+      } catch (e) {
+        console.error('Falha ao alternar conclusao de treino', e)
+      }
     },
   },
 })

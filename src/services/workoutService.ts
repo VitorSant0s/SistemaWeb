@@ -160,17 +160,23 @@ function createMockWorkouts(athleteId: string): Workout[] {
   )
 }
 
-function loadLocalWorkouts(athleteId: string) {
+function loadAllLocalWorkouts(): Workout[] {
   const stored = readStoredValue<Workout[] | null>(WORKOUT_STORAGE_KEY, null)
   if (stored && Array.isArray(stored)) return sortWorkouts(stored)
-
-  const seeded = createMockWorkouts(athleteId)
-  localStorage.setItem(WORKOUT_STORAGE_KEY, JSON.stringify(seeded))
-  return seeded
+  return []
 }
 
 function saveLocalWorkouts(workouts: Workout[]) {
   localStorage.setItem(WORKOUT_STORAGE_KEY, JSON.stringify(sortWorkouts(workouts)))
+}
+
+function loadLocalWorkouts(athleteId: string) {
+  const all = loadAllLocalWorkouts()
+  if (all.length > 0) return all
+
+  const seeded = createMockWorkouts(athleteId)
+  saveLocalWorkouts(seeded)
+  return seeded
 }
 
 export async function loadWorkouts(athleteId: string): Promise<Workout[]> {
@@ -179,7 +185,9 @@ export async function loadWorkouts(athleteId: string): Promise<Workout[]> {
   const { data, error } = await supabase.from('workouts').select('*').eq('athlete_id', athleteId)
   if (error || !data) return loadLocalWorkouts(athleteId)
 
-  return sortWorkouts((data as WorkoutRow[]).map((row) => mapWorkoutRow(row)))
+  const mapped = sortWorkouts((data as WorkoutRow[]).map((row) => mapWorkoutRow(row)))
+  saveLocalWorkouts(mapped) // cache
+  return mapped
 }
 
 export async function createWorkout(athleteId: string, draft: WorkoutDraft): Promise<Workout> {
@@ -245,6 +253,51 @@ export async function deleteWorkout(id: string, athleteId: string) {
   }
 
   await supabase.from('workouts').delete().eq('id', id)
+}
+
+export async function loadAthleteWorkouts(athleteId: string): Promise<Workout[]> {
+  if (!supabase) {
+    const all = loadAllLocalWorkouts()
+    return sortWorkouts(all.filter((w) => w.athleteId === athleteId))
+  }
+
+  const { data, error } = await supabase.from('workouts').select('*').eq('athlete_id', athleteId)
+  if (error || !data) return []
+
+  const mapped = sortWorkouts((data as WorkoutRow[]).map((row) => mapWorkoutRow(row)))
+  saveLocalWorkouts(mapped) // cache
+  return mapped
+}
+
+export async function createAthleteWorkout(athleteId: string, draft: WorkoutDraft): Promise<Workout> {
+  if (!supabase) {
+    const workout: Workout = {
+      ...draft,
+      id: createWorkoutId(),
+      athleteId,
+      completed: false,
+      createdAt: new Date().toISOString(),
+    }
+    saveLocalWorkouts([...loadAllLocalWorkouts(), workout])
+    return workout
+  }
+
+  const { data, error } = await supabase
+    .from('workouts')
+    .insert({
+      athlete_id: athleteId,
+      workout_type: draft.workoutType,
+      distance_km: draft.distanceKm,
+      duration_min: draft.durationMin,
+      workout_date: draft.workoutDate,
+      contract_id: validUuid(draft.contractId),
+      completed: false,
+    })
+    .select('*')
+    .single()
+
+  if (error || !data) return createAthleteWorkout(athleteId, { ...draft, contractId: null })
+  return mapWorkoutRow(data as WorkoutRow)
 }
 
 export async function toggleWorkoutCompleted(workout: Workout, athleteId: string): Promise<Workout> {

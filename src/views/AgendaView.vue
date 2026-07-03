@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Scaffold from '../components/Scaffold.vue'
 import WorkoutForm from '../components/WorkoutForm.vue'
 import { formatDateKey, useAgendaStore } from '../stores/agenda'
@@ -20,11 +20,14 @@ type CalendarCell = {
 
 const agenda = useAgendaStore()
 const auth = useAuthStore()
+const route = useRoute()
 const router = useRouter()
 
 agenda.init()
 
-const activeTab = ref<AgendaTab>('treinos')
+const activeTab = ref<AgendaTab>(
+  typeof route.query.contrato === 'string' && route.query.contrato ? 'acompanhamento' : 'treinos',
+)
 const formOpen = ref(false)
 const editingWorkout = ref<Workout | null>(null)
 const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
@@ -38,7 +41,15 @@ const selectedDateLabel = computed(() => formatLongDate(agenda.selectedDate))
 const selectedWorkouts = computed(() => agenda.workoutsForDate(agenda.selectedDate))
 const monthlyWorkoutCount = computed(() => agenda.workoutsForMonth(agenda.currentYear, agenda.currentMonth).length)
 const historyWorkouts = computed(() => agenda.historyWorkouts.slice(0, 8))
-const contractWorkouts = computed(() => agenda.contractWorkouts.slice(0, 6))
+const contractFilter = computed(() => {
+  const id = route.query.contrato
+  return typeof id === 'string' && id ? id : null
+})
+const filteredContractWorkouts = computed(() => {
+  const all = agenda.contractWorkouts
+  if (!contractFilter.value) return all.slice(0, 6)
+  return all.filter((w) => w.contractId === contractFilter.value).slice(0, 6)
+})
 const completionRate = computed(() => {
   if (agenda.stats.totalWorkouts === 0) return 0
   return Math.round((agenda.stats.completedWorkouts / agenda.stats.totalWorkouts) * 100)
@@ -125,13 +136,17 @@ function closeForm() {
   editingWorkout.value = null
 }
 
-function saveWorkout(draft: WorkoutDraft) {
-  if (editingWorkout.value) {
-    agenda.updateWorkout(editingWorkout.value.id, draft)
-  } else {
-    agenda.addWorkout(draft)
+async function saveWorkout(draft: WorkoutDraft) {
+  try {
+    if (editingWorkout.value) {
+      await agenda.updateWorkout(editingWorkout.value.id, draft)
+    } else {
+      await agenda.addWorkout(draft)
+    }
+    closeForm()
+  } catch (e) {
+    console.error('Falha ao salvar treino', e)
   }
-  closeForm()
 }
 
 function deleteWorkout(workout: Workout) {
@@ -331,12 +346,12 @@ async function logout() {
           <header class="agenda-section-header">
             <div>
               <p class="agenda-kicker">Profissional</p>
-              <h2>Treinos com acompanhamento</h2>
+              <h2>{{ contractFilter ? 'Treinos do contrato' : 'Treinos com acompanhamento' }}</h2>
             </div>
           </header>
 
-          <div v-if="contractWorkouts.length" class="agenda-workout-list compact">
-            <article v-for="workout in contractWorkouts" :key="workout.id" class="agenda-workout-item">
+          <div v-if="filteredContractWorkouts.length" class="agenda-workout-list compact">
+            <article v-for="workout in filteredContractWorkouts" :key="workout.id" class="agenda-workout-item">
               <div class="agenda-status-dot" :class="{ done: workout.completed }" aria-hidden="true"></div>
               <div class="agenda-workout-copy">
                 <strong>{{ workout.workoutType }}</strong>

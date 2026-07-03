@@ -59,7 +59,13 @@ export async function loadOffers(professionalId: string): Promise<ServiceOfferRe
     .order('created_at', { ascending: false })
 
   if (error || !data) return loadLocalOffers().filter((o) => o.professionalId === professionalId)
-  return (data as OfferRow[]).map(mapOfferRow)
+
+  const mapped = (data as OfferRow[]).map(mapOfferRow)
+  // Cache — update offers for this professional
+  const local = loadLocalOffers()
+  const others = local.filter((o) => o.professionalId !== professionalId)
+  saveLocalOffers([...others, ...mapped])
+  return mapped
 }
 
 export async function createOffer(draft: ServiceOfferDraft): Promise<ServiceOfferRecord> {

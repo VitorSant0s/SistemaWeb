@@ -4,11 +4,15 @@ import { useRouter } from 'vue-router'
 import Scaffold from '../components/Scaffold.vue'
 import { useAuthStore } from '../stores/auth'
 import { useAgendaStore, formatDateKey } from '../stores/agenda'
+import { useNegociacaoStore } from '../stores/negociacao'
 import { generateChallenge, loadFeedback, saveFeedback } from '../services/challengeService'
+import { getNotifications, getUnreadCount, markAsRead, markAllAsRead } from '../services/notificationService'
+import type { AppNotification } from '../services/notificationService'
 import type { ChallengeRating } from '../types/domain'
 
 const auth = useAuthStore()
 const agendaStore = useAgendaStore()
+const negociacao = useNegociacaoStore()
 const router = useRouter()
 const userId = computed(() => auth.user?.id ?? 'dev-user')
 
@@ -17,10 +21,45 @@ const savedFeedback = ref<{ rating: ChallengeRating; feedback: string } | null>(
 const selectedRating = ref<ChallengeRating | null>(null)
 const feedbackText = ref('')
 const feedbackSaving = ref(false)
+const notifOpen = ref(false)
+const notifList = ref<AppNotification[]>([])
+const unreadCount = ref(0)
+
+function refreshNotifs() {
+  notifList.value = getNotifications()
+  unreadCount.value = getUnreadCount()
+}
+
+function toggleNotifs() {
+  notifOpen.value = !notifOpen.value
+  if (notifOpen.value) refreshNotifs()
+}
+
+function handleMarkRead(id: string) {
+  markAsRead(id)
+  refreshNotifs()
+}
+
+function handleMarkAllRead() {
+  markAllAsRead()
+  refreshNotifs()
+}
+
+function formatNotifTime(iso: string) {
+  const date = new Date(iso)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  if (diff < 60000) return 'agora'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}min`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
 
 const userName = computed(() => {
   return auth.user?.user_metadata?.full_name ?? 'Vitor'
 })
+
+const role = computed(() => auth.role ?? 'athlete')
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -63,9 +102,26 @@ const ratingLabel = computed(() => {
   return map[savedFeedback.value.rating]
 })
 
+const contractsWithParties = computed(() => negociacao.contractsWithParties)
+const activeContracts = computed(() => contractsWithParties.value.filter((c) => c.status === 'active'))
+const proAthletes = computed(() => {
+  if (role.value !== 'professional') return []
+  return activeContracts.value.map((c) => ({
+    contractId: c.id,
+    athleteName: c.athleteName,
+    athleteId: c.athleteId,
+    value: c.finalAmount,
+  }))
+})
+
 onMounted(async () => {
   agendaStore.init()
-  savedFeedback.value = await loadFeedback(userId.value, today)
+  try {
+    await negociacao.init()
+    savedFeedback.value = await loadFeedback(userId.value, today)
+  } catch (e) {
+    console.error('Falha ao carregar dados iniciais', e)
+  }
 })
 
 function selectRating(rating: ChallengeRating) {
@@ -75,14 +131,19 @@ function selectRating(rating: ChallengeRating) {
 async function submitFeedback() {
   if (!selectedRating.value) return
   feedbackSaving.value = true
-  await saveFeedback(userId.value, today, {
-    rating: selectedRating.value,
-    feedback: feedbackText.value,
-  })
-  savedFeedback.value = { rating: selectedRating.value, feedback: feedbackText.value }
-  selectedRating.value = null
-  feedbackText.value = ''
-  feedbackSaving.value = false
+  try {
+    await saveFeedback(userId.value, today, {
+      rating: selectedRating.value,
+      feedback: feedbackText.value,
+    })
+    savedFeedback.value = { rating: selectedRating.value, feedback: feedbackText.value }
+    selectedRating.value = null
+    feedbackText.value = ''
+  } catch (e) {
+    console.error('Falha ao salvar feedback', e)
+  } finally {
+    feedbackSaving.value = false
+  }
 }
 
 function cancelFeedback() {
@@ -106,7 +167,9 @@ async function logout() {
     </template>
 
     <template #appbar-actions>
-      <button class="icon-circle" type="button" aria-label="Notificacoes">!</button>
+      <button class="icon-circle" type="button" aria-label="Notificacoes" @click="toggleNotifs">
+        {{ unreadCount > 0 ? unreadCount : '!' }}
+      </button>
     </template>
 
     <template #drawer-header>
@@ -116,6 +179,9 @@ async function logout() {
     <template #drawer>
       <RouterLink class="sidebar-item active" to="/" aria-current="page">Inicio</RouterLink>
       <RouterLink class="sidebar-item" to="/metricas">Metricas</RouterLink>
+      <RouterLink class="sidebar-item" to="/profissionais">Profissionais</RouterLink>
+      <RouterLink class="sidebar-item" to="/negociacoes">Negociacoes</RouterLink>
+      <RouterLink class="sidebar-item" to="/contratos">Contratos</RouterLink>
       <RouterLink class="sidebar-item" to="/agenda">Agenda</RouterLink>
       <RouterLink class="sidebar-item" to="/perfil">Perfil</RouterLink>
       <RouterLink class="sidebar-item" to="/mensagens">Mensagens</RouterLink>
@@ -208,6 +274,43 @@ async function logout() {
         <RouterLink class="btn-ghost" to="/agenda">Ir para agenda</RouterLink>
       </section>
 
+      <section v-if="role === 'professional' && proAthletes.length" class="home-section" aria-label="Meus atletas">
+        <header class="home-section-header">
+          <h2>Meus atletas</h2>
+          <RouterLink class="btn-ghost" to="/contratos">Ver todos</RouterLink>
+        </header>
+        <div class="home-athlete-grid">
+          <RouterLink
+            v-for="athlete in proAthletes"
+            :key="athlete.contractId"
+            :to="'/atleta/' + athlete.athleteId"
+            class="home-athlete-card"
+          >
+            <div class="home-athlete-avatar">{{ athlete.athleteName.charAt(0).toUpperCase() }}</div>
+            <div class="home-athlete-copy">
+              <strong>{{ athlete.athleteName }}</strong>
+              <span>Contrato ativo</span>
+            </div>
+          </RouterLink>
+        </div>
+      </section>
+
+      <section v-if="role === 'athlete' && activeContracts.length" class="home-section" aria-label="Contratos ativos">
+        <header class="home-section-header">
+          <h2>Acompanhamento</h2>
+          <RouterLink class="btn-ghost" to="/contratos">Ver contratos</RouterLink>
+        </header>
+        <div class="home-athlete-grid">
+          <article v-for="c in activeContracts" :key="c.id" class="home-athlete-card">
+            <div class="home-athlete-avatar">{{ c.professionalName.charAt(0).toUpperCase() }}</div>
+            <div class="home-athlete-copy">
+              <strong>{{ c.professionalName }}</strong>
+              <span>{{ c.professionalSpecialty }}</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <section class="stats-grid" aria-label="Metricas">
         <article class="stat-tile lime">
           <p>Treinos</p>
@@ -224,9 +327,40 @@ async function logout() {
 
     <template #bottom-nav>
       <RouterLink class="nav-item active" to="/" aria-current="page">Inicio</RouterLink>
-      <RouterLink class="nav-item" to="/metricas">Metricas</RouterLink>
+      <RouterLink class="nav-item" to="/profissionais">Profissionais</RouterLink>
       <RouterLink class="nav-item" to="/agenda">Agenda</RouterLink>
+      <RouterLink class="nav-item" to="/mensagens">Mensagens</RouterLink>
       <RouterLink class="nav-item" to="/perfil">Perfil</RouterLink>
     </template>
   </Scaffold>
+
+  <div v-if="notifOpen" class="notif-overlay" @click.self="notifOpen = false">
+    <section class="notif-panel" role="dialog" aria-modal="true" aria-label="Notificacoes">
+      <header class="notif-header">
+        <h2>Notificacoes</h2>
+        <div class="notif-header-actions">
+          <button class="btn-ghost btn-sm" type="button" @click="handleMarkAllRead">Marcar todas como lidas</button>
+          <button class="notif-close" type="button" aria-label="Fechar" @click="notifOpen = false">x</button>
+        </div>
+      </header>
+      <div v-if="!notifList.length" class="notif-empty">Nenhuma notificacao.</div>
+      <div v-else class="notif-list">
+        <button
+          v-for="n in notifList"
+          :key="n.id"
+          class="notif-item"
+          :class="{ unread: !n.read }"
+          type="button"
+          @click="handleMarkRead(n.id)"
+        >
+          <div class="notif-dot" :class="{ unread: !n.read }"></div>
+          <div class="notif-copy">
+            <strong>{{ n.title }}</strong>
+            <p>{{ n.body }}</p>
+            <span class="notif-time">{{ formatNotifTime(n.createdAt) }}</span>
+          </div>
+        </button>
+      </div>
+    </section>
+  </div>
 </template>

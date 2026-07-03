@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { useAuthStore } from './auth'
-import { loadProfile, saveProfile, loadProfessionalProfile, saveProfessionalProfile } from '../services/profileService'
+import { supabase } from '../lib/supabase'
+import { loadProfile, saveProfile, loadProfessionalProfile, saveProfessionalProfile, saveAthleteHealthData } from '../services/profileService'
 import type { ProfileRecord, ProfessionalProfileDraft, UserRole } from '../types/domain'
 
 export type ProfileRole = 'athlete' | 'professional'
@@ -23,6 +24,7 @@ export type HealthExam = {
 export type HealthData = {
   notes: string
   exams: HealthExam[]
+  shareWithProfessional: boolean
 }
 
 export type ProfessionalData = {
@@ -85,27 +87,31 @@ function placeholderExamImage(title: string, fill: string) {
 }
 
 function createDefaultHealth(): HealthData {
-  const date = todayDateKey()
+  const exams = import.meta.env.DEV
+    ? [
+        {
+          id: 'mock-exam-joelho',
+          title: 'Ressonancia joelho',
+          date: todayDateKey(),
+          imageDataUrl: placeholderExamImage('Joelho', '#243048'),
+          notes: 'Imagem mock para testar anexos de exames.',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'mock-exam-postural',
+          title: 'Avaliacao postural',
+          date: todayDateKey(),
+          imageDataUrl: placeholderExamImage('Postural', '#1f3c34'),
+          notes: 'Registro inicial para acompanhamento de postura e mobilidade.',
+          createdAt: new Date().toISOString(),
+        },
+      ]
+    : []
+
   return {
-    notes: 'Sem restricoes registradas. Atualize este campo com historico, alergias, lesoes e observacoes importantes.',
-    exams: [
-      {
-        id: 'mock-exam-joelho',
-        title: 'Ressonancia joelho',
-        date,
-        imageDataUrl: placeholderExamImage('Joelho', '#243048'),
-        notes: 'Imagem mock para testar anexos de exames.',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'mock-exam-postural',
-        title: 'Avaliacao postural',
-        date,
-        imageDataUrl: placeholderExamImage('Postural', '#1f3c34'),
-        notes: 'Registro inicial para acompanhamento de postura e mobilidade.',
-        createdAt: new Date().toISOString(),
-      },
-    ],
+    notes: '',
+    shareWithProfessional: false,
+    exams,
   }
 }
 
@@ -136,6 +142,12 @@ export const usePerfilStore = defineStore('perfil', {
     examCount: (state) => state.health.exams.length,
   },
   actions: {
+    syncHealth() {
+      const auth = useAuthStore()
+      const userId = auth.user?.id ?? 'dev-user'
+      localStorage.setItem(HEALTH_STORAGE_KEY, JSON.stringify(this.health))
+      saveAthleteHealthData(userId, this.health)
+    },
     async init(payload: PerfilInitPayload = {}) {
       if (this.initialized) return
       this.initialized = true
@@ -144,26 +156,50 @@ export const usePerfilStore = defineStore('perfil', {
       const userId = auth.user?.id ?? 'dev-user'
       const role = (payload.role ?? auth.role ?? 'athlete') as UserRole
 
-      const profileRecord = await loadProfile({ userId, role, fullName: payload.fullName })
-      this.profile = {
-        fullName: profileRecord.fullName,
-        city: profileRecord.city ?? '',
-        avatarDataUrl: profileRecord.avatarDataUrl,
+      // Read localStorage synchronously first — UI gets data immediately
+      const localProfile = readStoredValue<ProfileData | null>(PROFILE_STORAGE_KEY, null)
+      if (localProfile) {
+        this.profile = { fullName: localProfile.fullName, city: localProfile.city, avatarDataUrl: localProfile.avatarDataUrl }
+      } else {
+        this.profile = { fullName: payload.fullName?.trim() || 'Atleta Raiz', city: '', avatarDataUrl: null }
       }
 
       if (role === 'professional') {
-        const professionalRecord = await loadProfessionalProfile(userId)
-        this.professional = {
-          specialty: professionalRecord.specialty,
-          bio: professionalRecord.bio ?? '',
-          baseHourlyPrice: professionalRecord.baseHourlyPrice,
+        const localPro = readStoredValue<ProfessionalData | null>(PROFESSIONAL_STORAGE_KEY, null)
+        if (localPro) {
+          this.professional = { specialty: localPro.specialty, bio: localPro.bio, baseHourlyPrice: localPro.baseHourlyPrice }
         }
       }
 
       this.health = readStoredValue(HEALTH_STORAGE_KEY, createDefaultHealth())
-      localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(this.profile))
-      localStorage.setItem(PROFESSIONAL_STORAGE_KEY, JSON.stringify(this.professional))
-      localStorage.setItem(HEALTH_STORAGE_KEY, JSON.stringify(this.health))
+
+      // Dev mode — done, localStorage has the data
+      if (!supabase) return
+
+      // Production mode — sync with Supabase async
+      try {
+        const profileRecord = await loadProfile({ userId, role, fullName: payload.fullName })
+        if (profileRecord) {
+          this.profile.fullName = profileRecord.fullName
+          this.profile.city = profileRecord.city ?? ''
+          if (profileRecord.avatarDataUrl) this.profile.avatarDataUrl = profileRecord.avatarDataUrl
+        }
+      } catch {
+        console.error('Falha ao carregar perfil do servidor')
+      }
+
+      try {
+        if (role === 'professional') {
+          const professionalRecord = await loadProfessionalProfile(userId)
+          if (professionalRecord) {
+            this.professional.specialty = professionalRecord.specialty
+            this.professional.bio = professionalRecord.bio ?? ''
+            this.professional.baseHourlyPrice = professionalRecord.baseHourlyPrice
+          }
+        }
+      } catch {
+        console.error('Falha ao carregar perfil profissional do servidor')
+      }
     },
     async saveProfile(data: { fullName: string; city: string; avatarDataUrl: string | null }) {
       const auth = useAuthStore()
@@ -192,9 +228,13 @@ export const usePerfilStore = defineStore('perfil', {
         avatarDataUrl,
       })
     },
+    toggleHealthSharing(enabled: boolean) {
+      this.health.shareWithProfessional = enabled
+      this.syncHealth()
+    },
     saveHealthNotes(notes: string) {
       this.health.notes = notes
-      localStorage.setItem(HEALTH_STORAGE_KEY, JSON.stringify(this.health))
+      this.syncHealth()
     },
     addExam(draft: ExamDraft) {
       const exam: HealthExam = {
@@ -203,15 +243,15 @@ export const usePerfilStore = defineStore('perfil', {
         createdAt: new Date().toISOString(),
       }
       this.health.exams = [exam, ...this.health.exams]
-      localStorage.setItem(HEALTH_STORAGE_KEY, JSON.stringify(this.health))
+      this.syncHealth()
     },
     updateExam(id: string, draft: ExamDraft) {
       this.health.exams = this.health.exams.map((exam) => (exam.id === id ? { ...exam, ...draft } : exam))
-      localStorage.setItem(HEALTH_STORAGE_KEY, JSON.stringify(this.health))
+      this.syncHealth()
     },
     deleteExam(id: string) {
       this.health.exams = this.health.exams.filter((exam) => exam.id !== id)
-      localStorage.setItem(HEALTH_STORAGE_KEY, JSON.stringify(this.health))
+      this.syncHealth()
     },
     async saveProfessional(data: ProfessionalData) {
       const auth = useAuthStore()

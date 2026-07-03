@@ -61,7 +61,10 @@ export async function loadNegotiations(profileId: string): Promise<NegotiationRe
     .order('created_at', { ascending: false })
 
   if (error || !data) return loadLocalNegotiations().filter((n) => n.athleteId === profileId || n.professionalId === profileId)
-  return (data as NegotiationRow[]).map(mapNegotiationRow)
+
+  const mapped = (data as NegotiationRow[]).map(mapNegotiationRow)
+  saveLocalNegotiations(mapped) // cache
+  return mapped
 }
 
 export async function createNegotiation(draft: NegotiationDraft): Promise<NegotiationRecord> {

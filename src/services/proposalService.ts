@@ -61,7 +61,13 @@ export async function loadProposals(negotiationId: string): Promise<ProposalReco
     .order('created_at', { ascending: true })
 
   if (error || !data) return loadLocalProposals().filter((p) => p.negotiationId === negotiationId)
-  return (data as ProposalRow[]).map(mapProposalRow)
+
+  const mapped = (data as ProposalRow[]).map(mapProposalRow)
+  // Cache — replace all proposals for this negotiation
+  const local = loadLocalProposals()
+  const others = local.filter((p) => p.negotiationId !== negotiationId)
+  saveLocalProposals([...others, ...mapped])
+  return mapped
 }
 
 export async function createProposal(draft: ProposalDraft): Promise<ProposalRecord> {

@@ -198,6 +198,48 @@ export async function loadProfessionalProfile(userId: string): Promise<Professio
   return mapProfessionalRow(inserted as ProfessionalProfileRow)
 }
 
+export async function uploadExamImage(athleteId: string, examId: string, file: File): Promise<string | null> {
+  if (!supabase) return null
+
+  const fileExt = file.name.split('.').pop() || 'jpg'
+  const filePath = `${athleteId}/${examId}.${fileExt}`
+
+  const { error: uploadError } = await supabase.storage.from('exam-images').upload(filePath, file, { upsert: true })
+  if (uploadError) {
+    console.error('Erro ao enviar imagem para o storage', uploadError)
+    return null
+  }
+
+  const { data: urlData } = supabase.storage.from('exam-images').getPublicUrl(filePath)
+  return urlData.publicUrl
+}
+
+export async function deleteExamImage(athleteId: string, currentUrl: string | null) {
+  if (!supabase || !currentUrl) return
+  if (!currentUrl.includes('supabase.co')) return
+
+  const urlPath = currentUrl.split('/').pop()
+  if (!urlPath) return
+
+  const filePath = `${athleteId}/${urlPath}`
+  await supabase.storage.from('exam-images').remove([filePath])
+}
+
+export function saveAthleteHealthData(athleteId: string, healthData: unknown) {
+  localStorage.setItem(`athlete-health-${athleteId}`, JSON.stringify(healthData))
+}
+
+export function loadAthleteHealthData(athleteId: string): unknown | null {
+  const raw = localStorage.getItem(`athlete-health-${athleteId}`)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    localStorage.removeItem(`athlete-health-${athleteId}`)
+    return null
+  }
+}
+
 export async function saveProfessionalProfile(
   userId: string,
   draft: ProfessionalProfileDraft,

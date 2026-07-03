@@ -204,3 +204,63 @@ drop trigger if exists on_daily_challenge_updated on public.daily_challenges;
 create trigger on_daily_challenge_updated
   before update on public.daily_challenges
   for each row execute function public.handle_updated_at();
+
+-- Conversations and messages
+create table if not exists public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  participant_ids uuid[] not null,
+  last_message text,
+  last_message_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  sender_id uuid not null references public.profiles(id) on delete cascade,
+  text text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.conversations enable row level security;
+alter table public.messages enable row level security;
+
+create policy "conversations parties read" on public.conversations
+  for select using (auth.uid() = any(participant_ids));
+
+create policy "conversations parties insert" on public.conversations
+  for insert with check (auth.uid() = any(participant_ids));
+
+create policy "messages parties read" on public.messages
+  for select using (
+    exists (
+      select 1 from public.conversations c
+      where c.id = conversation_id
+      and auth.uid() = any(c.participant_ids)
+    )
+  );
+
+create policy "messages parties insert" on public.messages
+  for insert with check (
+    auth.uid() = sender_id and exists (
+      select 1 from public.conversations c
+      where c.id = conversation_id
+      and auth.uid() = any(c.participant_ids)
+    )
+  );
+
+-- Storage bucket for exam images
+insert into storage.buckets (id, name, public) values ('exam-images', 'exam-images', true)
+on conflict (id) do nothing;
+
+create policy if not exists "exam-images public read" on storage.objects
+  for select using (bucket_id = 'exam-images');
+
+create policy if not exists "exam-images auth upload" on storage.objects
+  for insert with check (bucket_id = 'exam-images' and auth.role() = 'authenticated');
+
+create policy if not exists "exam-images own update" on storage.objects
+  for update using (bucket_id = 'exam-images' and auth.uid() = owner);
+
+create policy if not exists "exam-images own delete" on storage.objects
+  for delete using (bucket_id = 'exam-images' and auth.uid() = owner);

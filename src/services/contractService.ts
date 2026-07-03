@@ -65,7 +65,10 @@ export async function loadContracts(profileId: string): Promise<ContractRecord[]
     .order('started_at', { ascending: false })
 
   if (error || !data) return loadLocalContracts().filter((c) => c.athleteId === profileId || c.professionalId === profileId)
-  return (data as ContractRow[]).map(mapContractRow)
+
+  const mapped = (data as ContractRow[]).map(mapContractRow)
+  saveLocalContracts(mapped) // cache
+  return mapped
 }
 
 export async function createContract(draft: ContractDraft): Promise<ContractRecord> {

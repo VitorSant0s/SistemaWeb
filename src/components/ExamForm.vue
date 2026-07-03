@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, nextTick, ref, watch } from 'vue'
 import type { ExamDraft, HealthExam } from '../stores/perfil'
+import { uploadExamImage } from '../services/profileService'
 
 const props = defineProps<{
   exam: HealthExam | null
+  athleteId?: string
 }>()
 
 const emit = defineEmits<{
@@ -14,6 +16,8 @@ const emit = defineEmits<{
 const title = ref('')
 const date = ref(defaultDate())
 const imageDataUrl = ref('')
+const imageFile = ref<File | null>(null)
+const imageUploading = ref(false)
 const notes = ref('')
 const error = ref('')
 
@@ -73,11 +77,13 @@ function handleImageChange(event: Event) {
   const file = input.files?.[0]
   if (!file) return
 
-  if (file.size > 1_500_000) {
-    error.value = 'Use uma imagem com ate 1.5 MB para salvar no modo local.'
+  if (file.size > 10_000_000) {
+    error.value = 'A imagem deve ter no maximo 10 MB.'
     input.value = ''
     return
   }
+
+  imageFile.value = file
 
   const reader = new FileReader()
   reader.onload = () => {
@@ -89,7 +95,7 @@ function handleImageChange(event: Event) {
   reader.readAsDataURL(file)
 }
 
-function submit() {
+async function submit() {
   error.value = ''
 
   if (!title.value.trim()) {
@@ -107,10 +113,20 @@ function submit() {
     return
   }
 
+  let url = imageDataUrl.value
+
+  if (imageFile.value && props.athleteId) {
+    imageUploading.value = true
+    const examId = props.exam?.id || `exam-${Date.now()}`
+    const uploaded = await uploadExamImage(props.athleteId, examId, imageFile.value)
+    if (uploaded) url = uploaded
+    imageUploading.value = false
+  }
+
   emit('save', {
     title: title.value.trim(),
     date: date.value,
-    imageDataUrl: imageDataUrl.value,
+    imageDataUrl: url,
     notes: notes.value.trim(),
   })
 }
@@ -153,8 +169,8 @@ function submit() {
         <p v-if="error" class="form-error" role="alert">{{ error }}</p>
 
         <div class="workout-form-actions">
-          <button class="btn-ghost" type="button" @click="close">Cancelar</button>
-          <button class="btn-primary" type="submit">Salvar exame</button>
+          <button class="btn-ghost" type="button" :disabled="imageUploading" @click="close">Cancelar</button>
+          <button class="btn-primary" type="submit" :disabled="imageUploading">{{ imageUploading ? 'Enviando imagem...' : 'Salvar exame' }}</button>
         </div>
       </form>
     </section>

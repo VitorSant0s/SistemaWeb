@@ -7,9 +7,9 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
+      selfDestroying: true,
       devOptions: {
-        enabled: true,
-        type: 'module',
+        enabled: false,
       },
       includeAssets: [
         'favicon.svg',
@@ -20,8 +20,7 @@ export default defineConfig({
       ],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
-        navigateFallback: '/offline.html',
-        navigateFallbackDenylist: [/\/api\//],
+        navigateFallback: null,
       },
       manifest: {
         name: 'Raiz Movimento',

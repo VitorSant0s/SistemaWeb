@@ -26,7 +26,7 @@ onMounted(async () => {
   loading.value = false
 })
 
-const userId = computed(() => auth.user?.id ?? 'dev-user')
+const userId = computed(() => auth.user?.id ?? '')
 const role = computed(() => auth.role ?? 'athlete')
 
 const negotiationsWithParties = computed(() => negociacao.negotiationsWithParties)
@@ -163,7 +163,7 @@ async function logout() {
     <template #drawer>
       <RouterLink class="sidebar-item" to="/">Inicio</RouterLink>
       <RouterLink class="sidebar-item" to="/metricas">Metricas</RouterLink>
-      <RouterLink class="sidebar-item" to="/profissionais">Profissionais</RouterLink>
+      <RouterLink v-if="auth.role !== 'professional'" class="sidebar-item" to="/profissionais">Profissionais</RouterLink>
       <RouterLink class="sidebar-item active" to="/negociacoes" aria-current="page">Negociacoes</RouterLink>
       <RouterLink class="sidebar-item" to="/contratos">Contratos</RouterLink>
       <RouterLink class="sidebar-item" to="/agenda">Agenda</RouterLink>
@@ -269,7 +269,7 @@ async function logout() {
           </button>
           <div v-if="!activeNegotiations.length" class="neg-empty">
             <p>Nenhuma negociacao ativa.</p>
-            <RouterLink class="btn-ghost" to="/profissionais">Buscar profissionais</RouterLink>
+            <RouterLink v-if="auth.role !== 'professional'" class="btn-ghost" to="/profissionais">Buscar profissionais</RouterLink>
           </div>
         </section>
 

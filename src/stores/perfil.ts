@@ -52,17 +52,7 @@ type PerfilState = {
   initialized: boolean
 }
 
-const PROFILE_STORAGE_KEY = 'perfil-profile'
 const HEALTH_STORAGE_KEY = 'perfil-health'
-const PROFESSIONAL_STORAGE_KEY = 'perfil-professional'
-
-function todayDateKey() {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = String(today.getMonth() + 1).padStart(2, '0')
-  const day = String(today.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 function createId(prefix: string) {
   if ('randomUUID' in crypto) return crypto.randomUUID()
@@ -72,7 +62,6 @@ function createId(prefix: string) {
 function readStoredValue<T>(key: string, fallback: T) {
   const raw = localStorage.getItem(key)
   if (!raw) return fallback
-
   try {
     return JSON.parse(raw) as T
   } catch {
@@ -81,53 +70,11 @@ function readStoredValue<T>(key: string, fallback: T) {
   }
 }
 
-function placeholderExamImage(title: string, fill: string) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="280" viewBox="0 0 420 280"><rect width="420" height="280" rx="30" fill="${fill}"/><circle cx="90" cy="90" r="44" fill="#dcff3d" opacity="0.92"/><path d="M155 86h178M155 124h132M70 194h280" stroke="#f7f9ff" stroke-width="18" stroke-linecap="round" opacity="0.74"/><text x="42" y="246" fill="#f7f9ff" font-family="Arial, sans-serif" font-size="26" font-weight="700">${title}</text></svg>`
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
-}
-
-function createDefaultHealth(): HealthData {
-  const exams = import.meta.env.DEV
-    ? [
-        {
-          id: 'mock-exam-joelho',
-          title: 'Ressonancia joelho',
-          date: todayDateKey(),
-          imageDataUrl: placeholderExamImage('Joelho', '#243048'),
-          notes: 'Imagem mock para testar anexos de exames.',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: 'mock-exam-postural',
-          title: 'Avaliacao postural',
-          date: todayDateKey(),
-          imageDataUrl: placeholderExamImage('Postural', '#1f3c34'),
-          notes: 'Registro inicial para acompanhamento de postura e mobilidade.',
-          createdAt: new Date().toISOString(),
-        },
-      ]
-    : []
-
-  return {
-    notes: '',
-    shareWithProfessional: false,
-    exams,
-  }
-}
-
-function createDefaultProfessional(): ProfessionalData {
-  return {
-    specialty: 'Especialista esportivo',
-    bio: 'Conte sua abordagem, metodologia e quais atletas voce acompanha.',
-    baseHourlyPrice: null,
-  }
-}
-
 export const usePerfilStore = defineStore('perfil', {
   state: (): PerfilState => ({
-    profile: { fullName: 'Atleta Raiz', city: '', avatarDataUrl: null },
-    health: createDefaultHealth(),
-    professional: createDefaultProfessional(),
+    profile: { fullName: '', city: '', avatarDataUrl: null },
+    health: { notes: '', exams: [], shareWithProfessional: false },
+    professional: { specialty: '', bio: '', baseHourlyPrice: null },
     initialized: false,
   }),
   getters: {
@@ -144,7 +91,7 @@ export const usePerfilStore = defineStore('perfil', {
   actions: {
     syncHealth() {
       const auth = useAuthStore()
-      const userId = auth.user?.id ?? 'dev-user'
+      const userId = auth.user?.id ?? ''
       localStorage.setItem(HEALTH_STORAGE_KEY, JSON.stringify(this.health))
       saveAthleteHealthData(userId, this.health)
     },
@@ -153,30 +100,13 @@ export const usePerfilStore = defineStore('perfil', {
       this.initialized = true
 
       const auth = useAuthStore()
-      const userId = auth.user?.id ?? 'dev-user'
+      const userId = auth.user?.id ?? ''
       const role = (payload.role ?? auth.role ?? 'athlete') as UserRole
 
-      // Read localStorage synchronously first — UI gets data immediately
-      const localProfile = readStoredValue<ProfileData | null>(PROFILE_STORAGE_KEY, null)
-      if (localProfile) {
-        this.profile = { fullName: localProfile.fullName, city: localProfile.city, avatarDataUrl: localProfile.avatarDataUrl }
-      } else {
-        this.profile = { fullName: payload.fullName?.trim() || 'Atleta Raiz', city: '', avatarDataUrl: null }
-      }
+      this.health = readStoredValue(HEALTH_STORAGE_KEY, { notes: '', exams: [], shareWithProfessional: false })
 
-      if (role === 'professional') {
-        const localPro = readStoredValue<ProfessionalData | null>(PROFESSIONAL_STORAGE_KEY, null)
-        if (localPro) {
-          this.professional = { specialty: localPro.specialty, bio: localPro.bio, baseHourlyPrice: localPro.baseHourlyPrice }
-        }
-      }
-
-      this.health = readStoredValue(HEALTH_STORAGE_KEY, createDefaultHealth())
-
-      // Dev mode — done, localStorage has the data
       if (!supabase) return
 
-      // Production mode — sync with Supabase async
       try {
         const profileRecord = await loadProfile({ userId, role, fullName: payload.fullName })
         if (profileRecord) {
@@ -203,7 +133,7 @@ export const usePerfilStore = defineStore('perfil', {
     },
     async saveProfile(data: { fullName: string; city: string; avatarDataUrl: string | null }) {
       const auth = useAuthStore()
-      const userId = auth.user?.id ?? 'dev-user'
+      const userId = auth.user?.id ?? ''
       const role = (auth.role ?? 'athlete') as UserRole
       const record: ProfileRecord = {
         id: userId,
@@ -255,7 +185,7 @@ export const usePerfilStore = defineStore('perfil', {
     },
     async saveProfessional(data: ProfessionalData) {
       const auth = useAuthStore()
-      const userId = auth.user?.id ?? 'dev-user'
+      const userId = auth.user?.id ?? ''
       const draft: ProfessionalProfileDraft = {
         specialty: data.specialty.trim() || 'Especialista esportivo',
         bio: data.bio.trim(),

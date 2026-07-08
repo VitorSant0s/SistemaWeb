@@ -7,6 +7,7 @@ import type { Workout, WorkoutDraft, WorkoutType } from '../stores/agenda'
 const props = defineProps<{
   workout: Workout | null
   selectedDate: string
+  forAthleteId?: string
 }>()
 
 const emit = defineEmits<{
@@ -27,7 +28,13 @@ const error = ref('')
 const isEditing = computed(() => Boolean(props.workout))
 const title = computed(() => (isEditing.value ? 'Editar treino' : 'Novo treino'))
 
-const activeContracts = computed(() => negociacao.contractsWithParties.filter((c) => c.status === 'active'))
+const activeContracts = computed(() => {
+  const all = negociacao.contractsWithParties.filter((c) => c.status === 'active')
+  if (props.forAthleteId) {
+    return all.filter((c) => c.athleteId === props.forAthleteId)
+  }
+  return all
+})
 
 function syncForm() {
   if (!props.workout) {
@@ -145,13 +152,13 @@ function submit() {
           <select id="workout-contract" v-model="selectedContractId">
             <option :value="null">Treino livre (sem acompanhamento)</option>
             <option v-for="c in activeContracts" :key="c.id" :value="c.id">
-              {{ c.professionalName }} — {{ c.professionalSpecialty }}
+              {{ forAthleteId ? `${c.athleteName} — Acompanhamento` : `${c.professionalName} — ${c.professionalSpecialty}` }}
             </option>
           </select>
         </label>
 
         <p v-if="!activeContracts.length" class="workout-form-helper">
-          Nenhum contrato ativo. Vincule treinos a contratos para receber acompanhamento profissional.
+          {{ forAthleteId ? 'Nenhum contrato ativo com este atleta.' : 'Nenhum contrato ativo. Vincule treinos a contratos para receber acompanhamento profissional.' }}
         </p>
 
         <p v-if="error" class="form-error" role="alert">{{ error }}</p>

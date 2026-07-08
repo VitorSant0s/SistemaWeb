@@ -1,8 +1,6 @@
 import { supabase } from '../lib/supabase'
 import type { ProposalDraft, ProposalRecord } from '../types/domain'
 
-const STORAGE_KEY = 'proposals'
-
 type ProposalRow = {
   id: string
   negotiation_id: string
@@ -12,22 +10,6 @@ type ProposalRow = {
   message: string | null
   due_days: number | null
   created_at: string
-}
-
-function createId() {
-  if ('randomUUID' in crypto) return crypto.randomUUID()
-  return `prop-${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-function readStoredValue<T>(key: string, fallback: T) {
-  const raw = localStorage.getItem(key)
-  if (!raw) return fallback
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    localStorage.removeItem(key)
-    return fallback
-  }
 }
 
 function mapProposalRow(row: ProposalRow): ProposalRecord {
@@ -43,49 +25,20 @@ function mapProposalRow(row: ProposalRow): ProposalRecord {
   }
 }
 
-function loadLocalProposals(): ProposalRecord[] {
-  return readStoredValue<ProposalRecord[]>(STORAGE_KEY, [])
-}
-
-function saveLocalProposals(proposals: ProposalRecord[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(proposals))
-}
-
 export async function loadProposals(negotiationId: string): Promise<ProposalRecord[]> {
-  if (!supabase) return loadLocalProposals().filter((p) => p.negotiationId === negotiationId)
-
+  if (!supabase) return []
   const { data, error } = await supabase
     .from('proposals')
     .select('*')
     .eq('negotiation_id', negotiationId)
     .order('created_at', { ascending: true })
 
-  if (error || !data) return loadLocalProposals().filter((p) => p.negotiationId === negotiationId)
-
-  const mapped = (data as ProposalRow[]).map(mapProposalRow)
-  // Cache — replace all proposals for this negotiation
-  const local = loadLocalProposals()
-  const others = local.filter((p) => p.negotiationId !== negotiationId)
-  saveLocalProposals([...others, ...mapped])
-  return mapped
+  if (error || !data) return []
+  return (data as ProposalRow[]).map(mapProposalRow)
 }
 
 export async function createProposal(draft: ProposalDraft): Promise<ProposalRecord> {
-  if (!supabase) {
-    const proposal: ProposalRecord = {
-      id: createId(),
-      negotiationId: draft.negotiationId,
-      authorId: draft.authorId,
-      valueAmount: draft.valueAmount,
-      scope: draft.scope,
-      message: draft.message,
-      dueDays: draft.dueDays,
-      createdAt: new Date().toISOString(),
-    }
-    saveLocalProposals([...loadLocalProposals(), proposal])
-    return proposal
-  }
-
+  if (!supabase) throw new Error('Falha ao criar proposta')
   const { data, error } = await supabase
     .from('proposals')
     .insert({
@@ -99,6 +52,6 @@ export async function createProposal(draft: ProposalDraft): Promise<ProposalReco
     .select('*')
     .single()
 
-  if (error || !data) return createProposal(draft)
+  if (error || !data) throw new Error('Falha ao criar proposta')
   return mapProposalRow(data as ProposalRow)
 }

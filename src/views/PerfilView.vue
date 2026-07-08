@@ -159,7 +159,7 @@ function deleteExam(exam: HealthExam) {
 }
 
 async function loadMyOffers() {
-  const uid = auth.user?.id ?? 'dev-user'
+  const uid = auth.user?.id ?? ''
   offers.value = await loadOffers(uid)
 }
 
@@ -186,7 +186,7 @@ function closeOfferForm() {
 
 async function saveOffer() {
   if (!offerTitle.value.trim()) return
-  const uid = auth.user?.id ?? 'dev-user'
+  const uid = auth.user?.id ?? ''
   const draft: ServiceOfferDraft = {
     professionalId: uid,
     title: offerTitle.value.trim(),
@@ -434,7 +434,7 @@ async function logout() {
     </template>
   </Scaffold>
 
-  <ExamForm v-if="examFormOpen" :exam="editingExam" :athlete-id="auth.user?.id ?? 'dev-user'" @close="closeExamForm" @save="saveExam" />
+  <ExamForm v-if="examFormOpen" :exam="editingExam" :athlete-id="auth.user?.id ?? ''" @close="closeExamForm" @save="saveExam" />
 
   <div v-if="offerFormOpen" class="offer-form-overlay" @click.self="closeOfferForm">
     <section class="offer-form-sheet" role="dialog" aria-modal="true" aria-labelledby="offer-form-title">

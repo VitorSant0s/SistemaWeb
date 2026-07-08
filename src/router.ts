@@ -45,16 +45,19 @@ router.afterEach((to) => {
 })
 
 router.beforeEach((to) => {
-  // In dev mode we often run without Supabase configured; don't block navigation.
-  if (import.meta.env.DEV) return true
-
   const auth = useAuthStore()
+
+  if (auth.loading) return true
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'auth' }
   }
 
   if (to.meta.guestOnly && auth.isAuthenticated) {
+    return { name: 'home' }
+  }
+
+  if (to.name === 'profissionais' && auth.role === 'professional') {
     return { name: 'home' }
   }
 

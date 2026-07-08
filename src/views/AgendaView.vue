@@ -6,6 +6,7 @@ import BottomNav from '../components/BottomNav.vue'
 import WorkoutForm from '../components/WorkoutForm.vue'
 import { formatDateKey, useAgendaStore } from '../stores/agenda'
 import { useAuthStore } from '../stores/auth'
+import { useNegociacaoStore } from '../stores/negociacao'
 import type { Workout, WorkoutDraft } from '../stores/agenda'
 
 type AgendaTab = 'treinos' | 'acompanhamento'
@@ -21,10 +22,35 @@ type CalendarCell = {
 
 const agenda = useAgendaStore()
 const auth = useAuthStore()
+const negociacao = useNegociacaoStore()
+negociacao.init()
 const route = useRoute()
 const router = useRouter()
 
-agenda.init()
+const isProfessional = computed(() => auth.role === 'professional')
+const selectedAthleteId = ref<string | null>(null)
+
+const myAthletes = computed(() => {
+  const userId = auth.user?.id ?? ''
+  const seen = new Set<string>()
+  return negociacao.contractsWithParties
+    .filter((c) => c.professionalId === userId && c.status === 'active')
+    .filter((c) => {
+      if (seen.has(c.athleteId)) return false
+      seen.add(c.athleteId)
+      return true
+    })
+    .map((c) => ({ athleteId: c.athleteId, athleteName: c.athleteName }))
+})
+
+function selectAthlete(athleteId: string) {
+  selectedAthleteId.value = athleteId
+  agenda.switchAthlete(athleteId)
+}
+
+if (!isProfessional.value) {
+  agenda.init()
+}
 
 const activeTab = ref<AgendaTab>(
   typeof route.query.contrato === 'string' && route.query.contrato ? 'acompanhamento' : 'treinos',
@@ -163,7 +189,7 @@ async function logout() {
 </script>
 
 <template>
-  <Scaffold fab-icon="+" @fab-click="openCreateForm">
+  <Scaffold :fab-icon="isProfessional && !selectedAthleteId ? '' : '+'" @fab-click="openCreateForm">
     <template #appbar-title>
       <div class="hello-block">
         <p class="hello-top">Seu calendario</p>
@@ -192,7 +218,7 @@ async function logout() {
     </template>
 
     <section class="agenda-page" aria-labelledby="agenda-title">
-      <section class="agenda-hero" aria-label="Resumo da agenda">
+      <section v-if="!isProfessional" class="agenda-hero" aria-label="Resumo da agenda">
         <div>
           <p class="agenda-kicker">Agenda ativa</p>
           <h2>Organize, marque e acompanhe seus treinos.</h2>
@@ -204,6 +230,36 @@ async function logout() {
         </div>
       </section>
 
+      <div v-if="isProfessional && !selectedAthleteId" class="agenda-hero">
+        <div v-if="myAthletes.length">
+          <p class="agenda-kicker">Selecione um atleta</p>
+          <h2>Escolha um atleta vinculado para gerenciar os treinos.</h2>
+        </div>
+        <div v-else>
+          <p class="agenda-kicker">Nenhum vinculo</p>
+          <h2>Você não possui atletas vinculados.</h2>
+          <p>Após fechar contratos, você poderá gerenciar os treinos dos seus atletas aqui.</p>
+        </div>
+        <div v-if="myAthletes.length" class="pros-grid" style="grid-column: 1 / -1">
+          <button
+            v-for="athlete in myAthletes"
+            :key="athlete.athleteId"
+            class="pro-card"
+            type="button"
+            @click="selectAthlete(athlete.athleteId)"
+          >
+            <div class="pro-card-header">
+              <div class="pro-avatar">{{ athlete.athleteName.charAt(0).toUpperCase() }}</div>
+              <div class="pro-card-title">
+                <h2>{{ athlete.athleteName }}</h2>
+                <span class="pro-specialty">Atleta vinculado</span>
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <template v-if="!isProfessional || selectedAthleteId">
       <div class="agenda-tabs" role="tablist" aria-label="Alternar agenda">
         <button
           class="agenda-tab"
@@ -213,7 +269,7 @@ async function logout() {
           :aria-selected="activeTab === 'treinos'"
           @click="activeTab = 'treinos'"
         >
-          Meus treinos
+          {{ isProfessional ? 'Treinos do atleta' : 'Meus treinos' }}
         </button>
         <button
           class="agenda-tab"
@@ -367,6 +423,7 @@ async function logout() {
           </div>
         </article>
       </section>
+    </template>
     </section>
 
     <template #bottom-nav>
@@ -378,6 +435,7 @@ async function logout() {
     v-if="formOpen"
     :workout="editingWorkout"
     :selected-date="agenda.selectedDate"
+    :for-athlete-id="isProfessional ? (selectedAthleteId ?? undefined) : undefined"
     @close="closeForm"
     @save="saveWorkout"
   />

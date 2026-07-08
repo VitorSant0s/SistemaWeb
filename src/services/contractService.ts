@@ -1,8 +1,6 @@
 import { supabase } from '../lib/supabase'
 import type { ContractDraft, ContractRecord, ContractStatus } from '../types/domain'
 
-const STORAGE_KEY = 'contracts'
-
 type ContractRow = {
   id: string
   negotiation_id: string
@@ -12,22 +10,6 @@ type ContractRow = {
   status: string
   started_at: string
   finished_at: string | null
-}
-
-function createId() {
-  if ('randomUUID' in crypto) return crypto.randomUUID()
-  return `contract-${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-function readStoredValue<T>(key: string, fallback: T) {
-  const raw = localStorage.getItem(key)
-  if (!raw) return fallback
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    localStorage.removeItem(key)
-    return fallback
-  }
 }
 
 function isContractStatus(value: string): value is ContractStatus {
@@ -47,46 +29,20 @@ function mapContractRow(row: ContractRow): ContractRecord {
   }
 }
 
-function loadLocalContracts(): ContractRecord[] {
-  return readStoredValue<ContractRecord[]>(STORAGE_KEY, [])
-}
-
-function saveLocalContracts(contracts: ContractRecord[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(contracts))
-}
-
 export async function loadContracts(profileId: string): Promise<ContractRecord[]> {
-  if (!supabase) return loadLocalContracts().filter((c) => c.athleteId === profileId || c.professionalId === profileId)
-
+  if (!supabase) return []
   const { data, error } = await supabase
     .from('contracts')
     .select('*')
     .or(`athlete_id.eq.${profileId},professional_id.eq.${profileId}`)
     .order('started_at', { ascending: false })
 
-  if (error || !data) return loadLocalContracts().filter((c) => c.athleteId === profileId || c.professionalId === profileId)
-
-  const mapped = (data as ContractRow[]).map(mapContractRow)
-  saveLocalContracts(mapped) // cache
-  return mapped
+  if (error || !data) return []
+  return (data as ContractRow[]).map(mapContractRow)
 }
 
 export async function createContract(draft: ContractDraft): Promise<ContractRecord> {
-  if (!supabase) {
-    const contract: ContractRecord = {
-      id: createId(),
-      negotiationId: draft.negotiationId,
-      athleteId: draft.athleteId,
-      professionalId: draft.professionalId,
-      finalAmount: draft.finalAmount,
-      status: 'active',
-      startedAt: new Date().toISOString(),
-      finishedAt: null,
-    }
-    saveLocalContracts([...loadLocalContracts(), contract])
-    return contract
-  }
-
+  if (!supabase) throw new Error('Falha ao criar contrato')
   const { data, error } = await supabase
     .from('contracts')
     .insert({
@@ -98,25 +54,12 @@ export async function createContract(draft: ContractDraft): Promise<ContractReco
     .select('*')
     .single()
 
-  if (error || !data) return createContract(draft)
+  if (error || !data) throw new Error('Falha ao criar contrato')
   return mapContractRow(data as ContractRow)
 }
 
 export async function updateContractStatus(id: string, status: ContractStatus): Promise<ContractRecord | null> {
-  if (!supabase) {
-    const contracts = loadLocalContracts()
-    const updated = contracts.map((c) => {
-      if (c.id !== id) return c
-      return {
-        ...c,
-        status,
-        finishedAt: status === 'completed' || status === 'cancelled' ? new Date().toISOString() : c.finishedAt,
-      }
-    })
-    saveLocalContracts(updated)
-    return updated.find((c) => c.id === id) ?? null
-  }
-
+  if (!supabase) return null
   const payload: Partial<ContractRow> = { status }
   if (status === 'completed' || status === 'cancelled') {
     payload.finished_at = new Date().toISOString()

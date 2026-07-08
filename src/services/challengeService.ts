@@ -98,24 +98,8 @@ export function generateChallenge(workouts: Workout[]): DailyChallenge {
   return buildChallenge(template, todayWorkouts)
 }
 
-function getFeedbackKey(athleteId: string, date: string) {
-  return `challenge-feedback-${athleteId}-${date}`
-}
-
-function readStoredValue<T>(key: string, fallback: T): T {
-  const raw = localStorage.getItem(key)
-  if (!raw) return fallback
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    localStorage.removeItem(key)
-    return fallback
-  }
-}
-
 export async function loadFeedback(athleteId: string, date: string): Promise<ChallengeFeedback | null> {
-  if (!supabase) return readStoredValue(getFeedbackKey(athleteId, date), null)
-
+  if (!supabase) return null
   const { data, error } = await supabase
     .from('daily_challenges')
     .select('rating, feedback')
@@ -123,14 +107,12 @@ export async function loadFeedback(athleteId: string, date: string): Promise<Cha
     .eq('date', date)
     .maybeSingle()
 
-  if (error || !data || !data.rating) return readStoredValue(getFeedbackKey(athleteId, date), null)
+  if (error || !data || !data.rating) return null
 
-  const result: ChallengeFeedback = {
+  return {
     rating: data.rating as ChallengeRating,
     feedback: data.feedback ?? '',
   }
-  localStorage.setItem(getFeedbackKey(athleteId, date), JSON.stringify(result)) // cache
-  return result
 }
 
 export async function saveFeedback(
@@ -138,11 +120,7 @@ export async function saveFeedback(
   date: string,
   feedback: ChallengeFeedback,
 ): Promise<void> {
-  const localKey = getFeedbackKey(athleteId, date)
-  localStorage.setItem(localKey, JSON.stringify(feedback))
-
   if (!supabase) return
-
   await supabase
     .from('daily_challenges')
     .upsert(

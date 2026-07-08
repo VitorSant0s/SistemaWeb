@@ -213,6 +213,7 @@ create table if not exists public.conversations (
   last_message_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
+create unique index if not exists conversations_participants_unique on public.conversations using gin (participant_ids);
 
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),

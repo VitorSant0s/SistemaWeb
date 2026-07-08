@@ -6,7 +6,7 @@ import { useAuthStore } from '../stores/auth'
 import { useNegociacaoStore } from '../stores/negociacao'
 import { loadAthleteWorkouts, createAthleteWorkout } from '../services/workoutService'
 import { loadAthleteHealthData } from '../services/profileService'
-import { getDirectoryEntry } from '../services/messageService'
+import { getDirectoryEntry, getDirectoryEntryAsync } from '../services/messageService'
 import { workoutTypes } from '../types/domain'
 import type { Workout, WorkoutDraft, WorkoutType } from '../types/domain'
 import BottomNav from '../components/BottomNav.vue'
@@ -16,14 +16,14 @@ const router = useRouter()
 const auth = useAuthStore()
 const negociacao = useNegociacaoStore()
 
-const athleteId = computed(() => (route.params.id as string) || 'mock-athlete-1')
+const athleteId = computed(() => (route.params.id as string) || '')
 const workouts = ref<Workout[]>([])
 const healthData = ref<{ notes: string; exams: Array<{ id: string; title: string; date: string; imageDataUrl: string; notes: string; createdAt: string }>; shareWithProfessional: boolean } | null>(null)
 const loading = ref(true)
 
 const athleteInfo = computed(() => getDirectoryEntry(athleteId.value) ?? { id: athleteId.value, name: 'Atleta', role: 'athlete' as const })
 const contract = computed(() => negociacao.contractsWithParties.find((c) => c.athleteId === athleteId.value && c.status === 'active'))
-const userId = computed(() => auth.user?.id ?? 'dev-user')
+const userId = computed(() => auth.user?.id ?? '')
 const isContractor = computed(() => contract.value?.professionalId === userId.value)
 
 // Stats
@@ -61,6 +61,7 @@ const recentWorkouts = computed(() => [...workouts.value].sort((a, b) => b.worko
 
 onMounted(async () => {
   await negociacao.init()
+  await getDirectoryEntryAsync(athleteId.value)
   workouts.value = await loadAthleteWorkouts(athleteId.value)
   healthData.value = loadAthleteHealthData(athleteId.value) as typeof healthData.value
   loading.value = false
@@ -136,7 +137,7 @@ async function logout() {
     <template #drawer>
       <RouterLink class="sidebar-item" to="/">Inicio</RouterLink>
       <RouterLink class="sidebar-item" to="/metricas">Metricas</RouterLink>
-      <RouterLink class="sidebar-item" to="/profissionais">Profissionais</RouterLink>
+      <RouterLink v-if="auth.role !== 'professional'" class="sidebar-item" to="/profissionais">Profissionais</RouterLink>
       <RouterLink class="sidebar-item" to="/negociacoes">Negociacoes</RouterLink>
       <RouterLink class="sidebar-item" to="/contratos">Contratos</RouterLink>
       <RouterLink class="sidebar-item" to="/agenda">Agenda</RouterLink>

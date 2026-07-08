@@ -20,7 +20,7 @@ onMounted(async () => {
   loading.value = false
 })
 
-const userId = computed(() => auth.user?.id ?? 'dev-user')
+const userId = computed(() => auth.user?.id ?? '')
 const contractsWithParties = computed(() => negociacao.contractsWithParties)
 
 const activeContracts = computed(() => contractsWithParties.value.filter((c) => c.status === 'active'))
@@ -88,7 +88,7 @@ async function logout() {
     <template #drawer>
       <RouterLink class="sidebar-item" to="/">Inicio</RouterLink>
       <RouterLink class="sidebar-item" to="/metricas">Metricas</RouterLink>
-      <RouterLink class="sidebar-item" to="/profissionais">Profissionais</RouterLink>
+      <RouterLink v-if="auth.role !== 'professional'" class="sidebar-item" to="/profissionais">Profissionais</RouterLink>
       <RouterLink class="sidebar-item" to="/negociacoes">Negociacoes</RouterLink>
       <RouterLink class="sidebar-item active" to="/contratos" aria-current="page">Contratos</RouterLink>
       <RouterLink class="sidebar-item" to="/agenda">Agenda</RouterLink>
@@ -183,7 +183,7 @@ async function logout() {
           </button>
           <div v-if="!activeContracts.length" class="contracts-empty">
             <p>Nenhum contrato ativo.</p>
-            <RouterLink class="btn-ghost" to="/profissionais">Buscar profissionais</RouterLink>
+            <RouterLink v-if="auth.role !== 'professional'" class="btn-ghost" to="/profissionais">Buscar profissionais</RouterLink>
           </div>
         </section>
 

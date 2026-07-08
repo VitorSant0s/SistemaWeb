@@ -36,3 +36,7 @@ enums, trigger de criacao automatica de perfil e politicas RLS para atletas e pr
 ```bash
 npm run build
 ```
+
+## Problemas conhecidos / To-do
+
+- **Tratamento offline:** a PWA não possui fallback offline funcional — usuários sem conexão recebem a tela genérica do navegador. Implementar detecção de conectividade e uma experiencia offline basica (ex.: exibir dados cacheados) esta pendente.

@@ -10,14 +10,15 @@ import {
   sendMessage,
   createConversation,
   searchDirectory,
-  getDirectoryEntry,
+  getDirectoryEntryAsync,
 } from '../services/messageService'
 import type { ConversationWithProfile, DirectoryEntry, Message } from '../types/domain'
+import { supabase } from '../lib/supabase'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
-const userId = computed(() => auth.user?.id ?? 'dev-user')
+const userId = computed(() => auth.user?.id ?? '')
 
 const activeTab = ref<'conversas' | 'buscar'>('conversas')
 const conversations = ref<ConversationWithProfile[]>([])
@@ -28,18 +29,60 @@ const searchQuery = ref('')
 const searchResults = ref<DirectoryEntry[]>([])
 
 const messagesLoading = ref(true)
+let realtimeChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null
 
 async function loadConversations() {
   conversations.value = await getConversations(userId.value)
   messagesLoading.value = false
 }
 
+function subscribeRealtime(conversationId: string) {
+  if (!supabase) return
+  realtimeChannel = supabase
+    .channel(`messages:${conversationId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      (payload) => {
+        const row = payload.new as { id: string; conversation_id: string; sender_id: string; text: string; created_at: string }
+        if (row.sender_id === userId.value) return
+        const msg: Message = {
+          id: row.id,
+          conversationId: row.conversation_id,
+          senderId: row.sender_id,
+          text: row.text,
+          createdAt: row.created_at,
+        }
+        currentMessages.value = [...currentMessages.value, msg]
+        conversations.value = conversations.value.map((c) =>
+          c.id === conversationId ? { ...c, lastMessage: row.text, lastMessageAt: row.created_at } : c,
+        )
+      },
+    )
+    .subscribe()
+}
+
+function unsubscribeRealtime() {
+  if (realtimeChannel) {
+    supabase?.removeChannel(realtimeChannel)
+    realtimeChannel = null
+  }
+}
+
 async function openConversation(conv: ConversationWithProfile) {
+  unsubscribeRealtime()
   currentConversation.value = conv
   currentMessages.value = await getMessages(conv.id)
+  subscribeRealtime(conv.id)
 }
 
 function closeChat() {
+  unsubscribeRealtime()
   currentConversation.value = null
   currentMessages.value = []
   chatInput.value = ''
@@ -63,11 +106,10 @@ function handleKeydown(event: KeyboardEvent) {
 
 async function startConversation(entry: DirectoryEntry) {
   const conv = await createConversation(userId.value, entry.id)
-  const partner = getDirectoryEntry(entry.id)
   const convWithProfile: ConversationWithProfile = {
     ...conv,
-    partnerName: partner?.name ?? entry.name,
-    partnerRole: partner?.role ?? 'athlete',
+    partnerName: entry.name,
+    partnerRole: entry.role,
   }
   currentConversation.value = convWithProfile
   currentMessages.value = []
@@ -86,20 +128,19 @@ loadConversations()
 
 // Handle ?pro= query param — auto-open conversation with the given user
 if (typeof route.query.pro === 'string') {
-  const entry = getDirectoryEntry(route.query.pro)
-  if (entry) {
-    void startConversation(entry)
-    router.replace({ query: {} })
-  }
+  getDirectoryEntryAsync(route.query.pro).then((entry) => {
+    if (entry) { startConversation(entry); router.replace({ query: {} }) }
+  })
 }
 
 // Watch for re-navigation with ?pro= while component is alive
 watch(() => route.query.pro, (pro) => {
   if (typeof pro !== 'string') return
-  const entry = getDirectoryEntry(pro)
-  if (!entry) return
-  void startConversation(entry)
-  router.replace({ query: {} })
+  getDirectoryEntryAsync(pro).then((entry) => {
+    if (!entry) return
+    startConversation(entry)
+    router.replace({ query: {} })
+  })
 })
 
 function formatTime(iso: string) {

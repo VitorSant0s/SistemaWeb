@@ -8,6 +8,7 @@ import {
 import { createProposal, loadProposals } from '../services/proposalService'
 import { createContract, loadContracts, updateContractStatus } from '../services/contractService'
 import { addNotification } from '../services/notificationService'
+import { supabase } from '../lib/supabase'
 import type {
   ContractRecord,
   ContractWithParties,
@@ -18,6 +19,30 @@ import type {
 } from '../types/domain'
 
 const DIR_KEY = 'messages-directory'
+
+type DirEntry = { id: string; name: string; role: string; specialty?: string }
+
+async function fetchDirEntry(id: string): Promise<DirEntry | null> {
+  const cached = readStoredValue<DirEntry[]>(DIR_KEY, []).find((d) => d.id === id)
+  if (cached) return cached
+  if (!supabase) return null
+  const { data } = await supabase.from('profiles').select('id, full_name, role').eq('id', id).maybeSingle()
+  if (!data) return null
+  const entry: DirEntry = { id: data.id, name: data.full_name, role: data.role }
+  let specialty = ''
+  const { data: pro } = await supabase.from('professional_profiles').select('specialty').eq('id', id).maybeSingle()
+  if (pro) specialty = pro.specialty
+  entry.specialty = specialty
+  const dir = readStoredValue<DirEntry[]>(DIR_KEY, [])
+  const idx = dir.findIndex((d) => d.id === id)
+  if (idx >= 0) dir[idx] = entry; else dir.push(entry)
+  localStorage.setItem(DIR_KEY, JSON.stringify(dir))
+  return entry
+}
+
+function resolveDirEntry(id: string, dir: DirEntry[]): DirEntry | undefined {
+  return dir.find((d) => d.id === id)
+}
 
 type NegociacaoState = {
   negotiations: NegotiationRecord[]
@@ -35,11 +60,11 @@ export const useNegociacaoStore = defineStore('negociacao', {
   }),
   getters: {
     negotiationsWithParties: (state) => {
-      const dir = readStoredValue<Array<{ id: string; name: string; role: string; specialty?: string }>>(DIR_KEY, [])
+      const dir = readStoredValue<DirEntry[]>(DIR_KEY, [])
 
       return state.negotiations.map((n) => {
-        const athlete = dir.find((d) => d.id === n.athleteId)
-        const professional = dir.find((d) => d.id === n.professionalId)
+        const athlete = resolveDirEntry(n.athleteId, dir)
+        const professional = resolveDirEntry(n.professionalId, dir)
         const lastProposal = state.proposals
           .filter((p) => p.negotiationId === n.id)
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
@@ -54,11 +79,11 @@ export const useNegociacaoStore = defineStore('negociacao', {
       })
     },
     contractsWithParties: (state) => {
-      const dir = readStoredValue<Array<{ id: string; name: string; role: string; specialty?: string }>>(DIR_KEY, [])
+      const dir = readStoredValue<DirEntry[]>(DIR_KEY, [])
 
       return state.contracts.map((c) => {
-        const athlete = dir.find((d) => d.id === c.athleteId)
-        const professional = dir.find((d) => d.id === c.professionalId)
+        const athlete = resolveDirEntry(c.athleteId, dir)
+        const professional = resolveDirEntry(c.professionalId, dir)
         return {
           ...c,
           athleteName: athlete?.name ?? 'Atleta',
@@ -75,7 +100,8 @@ export const useNegociacaoStore = defineStore('negociacao', {
       this.initialized = true
 
       const auth = useAuthStore()
-      const userId = auth.user?.id ?? 'dev-user'
+      const userId = auth.user?.id ?? ''
+      if (!userId) { this.initialized = true; return }
 
       try {
         this.negotiations = await loadNegotiations(userId)
@@ -101,10 +127,17 @@ export const useNegociacaoStore = defineStore('negociacao', {
         console.error('Falha ao carregar contratos', e)
         this.contracts = []
       }
+
+      const ids = new Set<string>()
+      for (const n of this.negotiations) { ids.add(n.athleteId); ids.add(n.professionalId) }
+      for (const c of this.contracts) { ids.add(c.athleteId); ids.add(c.professionalId) }
+      const dir = readStoredValue<DirEntry[]>(DIR_KEY, [])
+      const missing = [...ids].filter((id) => !resolveDirEntry(id, dir))
+      await Promise.all(missing.map(fetchDirEntry))
     },
     async startNegotiation(professionalId: string, serviceOfferId: string) {
       const auth = useAuthStore()
-      const athleteId = auth.user?.id ?? 'dev-user'
+      const athleteId = auth.user?.id ?? ''
 
       const existing = this.negotiations.find(
         (n) => n.athleteId === athleteId && n.professionalId === professionalId && n.status === 'open',
@@ -122,7 +155,7 @@ export const useNegociacaoStore = defineStore('negociacao', {
     },
     async sendProposal(negotiationId: string, draft: Omit<ProposalDraft, 'negotiationId' | 'authorId'>) {
       const auth = useAuthStore()
-      const authorId = auth.user?.id ?? 'dev-user'
+      const authorId = auth.user?.id ?? ''
 
       try {
         const proposal = await createProposal({ ...draft, negotiationId, authorId })

@@ -12,6 +12,7 @@ type AgendaState = {
   currentYear: number
   currentMonth: number
   initialized: boolean
+  currentAthleteId: string | null
 }
 
 export function formatDateKey(date: Date) {
@@ -22,12 +23,8 @@ export function formatDateKey(date: Date) {
 }
 
 function getAthleteId(): string {
-  try {
-    const auth = useAuthStore()
-    return auth.user?.id ?? 'dev-user'
-  } catch {
-    return 'dev-user'
-  }
+  const auth = useAuthStore()
+  return auth.user?.id ?? ''
 }
 
 export const useAgendaStore = defineStore('agenda', {
@@ -39,6 +36,7 @@ export const useAgendaStore = defineStore('agenda', {
       currentYear: today.getFullYear(),
       currentMonth: today.getMonth(),
       initialized: false,
+      currentAthleteId: null,
     }
   },
   getters: {
@@ -62,15 +60,25 @@ export const useAgendaStore = defineStore('agenda', {
     },
   },
   actions: {
-    async init() {
+    async init(athleteId?: string) {
       if (this.initialized) return
       this.initialized = true
+      const id = athleteId ?? getAthleteId()
+      this.currentAthleteId = id
       try {
-        this.workouts = await loadWorkouts(getAthleteId())
+        this.workouts = await loadWorkouts(id)
       } catch (e) {
         console.error('Falha ao carregar treinos', e)
         this.workouts = []
       }
+    },
+    async switchAthlete(athleteId: string) {
+      this.workouts = []
+      this.selectedDate = formatDateKey(new Date())
+      this.currentYear = new Date().getFullYear()
+      this.currentMonth = new Date().getMonth()
+      this.initialized = false
+      await this.init(athleteId)
     },
     selectDate(date: string) {
       this.selectedDate = date
@@ -93,7 +101,9 @@ export const useAgendaStore = defineStore('agenda', {
     },
     async addWorkout(draft: WorkoutDraft) {
       try {
-        const workout = await createWorkout(getAthleteId(), draft)
+        const id = this.currentAthleteId ?? getAthleteId()
+        if (!id) throw new Error('Athlete ID nao encontrado para criar treino')
+        const workout = await createWorkout(id, draft)
         this.workouts.push(workout)
         this.selectedDate = workout.workoutDate
         return workout
@@ -103,7 +113,7 @@ export const useAgendaStore = defineStore('agenda', {
     },
     async updateWorkout(id: string, draft: WorkoutDraft) {
       try {
-        const updated = await updateWorkout(id, draft, getAthleteId())
+        const updated = await updateWorkout(id, draft)
         if (updated) {
           this.workouts = this.workouts.map((workout) => (workout.id === id ? updated : workout))
           this.selectedDate = draft.workoutDate
@@ -114,7 +124,7 @@ export const useAgendaStore = defineStore('agenda', {
     },
     async deleteWorkout(id: string) {
       try {
-        await deleteWorkout(id, getAthleteId())
+        await deleteWorkout(id)
         this.workouts = this.workouts.filter((workout) => workout.id !== id)
       } catch (e) {
         console.error('Falha ao excluir treino', e)
@@ -124,7 +134,7 @@ export const useAgendaStore = defineStore('agenda', {
       try {
         const workout = this.workouts.find((w) => w.id === id)
         if (!workout) return
-        const updated = await toggleWorkoutCompleted(workout, getAthleteId())
+        const updated = await toggleWorkoutCompleted(workout)
         this.workouts = this.workouts.map((w) => (w.id === id ? updated : w))
       } catch (e) {
         console.error('Falha ao alternar conclusao de treino', e)

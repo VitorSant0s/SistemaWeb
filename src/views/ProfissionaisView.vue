@@ -12,7 +12,7 @@ const auth = useAuthStore()
 const negociacao = useNegociacaoStore()
 const router = useRouter()
 
-const userId = computed(() => auth.user?.id ?? 'dev-user')
+const userId = computed(() => auth.user?.id ?? '')
 const professionals = ref<ProfessionalWithProfile[]>([])
 const loading = ref(true)
 const negotiatingId = ref<string | null>(null)
@@ -57,7 +57,7 @@ async function logout() {
     <template #drawer>
       <RouterLink class="sidebar-item" to="/">Inicio</RouterLink>
       <RouterLink class="sidebar-item" to="/metricas">Metricas</RouterLink>
-      <RouterLink class="sidebar-item active" to="/profissionais" aria-current="page">Profissionais</RouterLink>
+      <RouterLink v-if="auth.role !== 'professional'" class="sidebar-item active" to="/profissionais" aria-current="page">Profissionais</RouterLink>
       <RouterLink class="sidebar-item" to="/negociacoes">Negociacoes</RouterLink>
       <RouterLink class="sidebar-item" to="/contratos">Contratos</RouterLink>
       <RouterLink class="sidebar-item" to="/agenda">Agenda</RouterLink>

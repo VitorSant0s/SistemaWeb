@@ -10,7 +10,7 @@ import { loadContracts } from '../services/contractService'
 import { loadOffers } from '../services/offerService'
 import { loadNegotiations } from '../services/negotiationService'
 import { loadAthleteWorkouts } from '../services/workoutService'
-import { getDirectoryEntry } from '../services/messageService'
+import { getDirectoryEntry, getDirectoryEntryAsync } from '../services/messageService'
 import type { ContractRecord, NegotiationRecord, ServiceOfferRecord, Workout } from '../types/domain'
 import BottomNav from '../components/BottomNav.vue'
 
@@ -25,7 +25,7 @@ perfil.init({ role: auth.role })
 negociacao.init()
 
 const role = computed(() => auth.role ?? 'athlete')
-const userId = computed(() => auth.user?.id ?? 'dev-user')
+const userId = computed(() => auth.user?.id ?? '')
 
 const loading = ref(true)
 const loadError = ref(false)
@@ -48,6 +48,7 @@ onMounted(async () => {
           perAthleteWorkouts.value[c.athleteId] = []
         }
       }
+      await Promise.all(active.map((c) => getDirectoryEntryAsync(c.athleteId)))
     }
   } catch (e) {
     console.error('Falha ao carregar metricas', e)
@@ -164,7 +165,7 @@ async function logout() {
     <template #drawer>
       <RouterLink class="sidebar-item" to="/">Inicio</RouterLink>
       <RouterLink class="sidebar-item active" to="/metricas" aria-current="page">Metricas</RouterLink>
-      <RouterLink class="sidebar-item" to="/profissionais">Profissionais</RouterLink>
+      <RouterLink v-if="auth.role !== 'professional'" class="sidebar-item" to="/profissionais">Profissionais</RouterLink>
       <RouterLink class="sidebar-item" to="/negociacoes">Negociacoes</RouterLink>
       <RouterLink class="sidebar-item" to="/contratos">Contratos</RouterLink>
       <RouterLink class="sidebar-item" to="/agenda">Agenda</RouterLink>
